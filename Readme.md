@@ -11,7 +11,7 @@
 
 Checkout our documentations at [here](https://docs.movy.rs)
 
-__Movy is still in very early-alpha stage and we 
+__Movy is still in very early-alpha stage and we are working heavily for new features__
 
 ## Show cases
 
