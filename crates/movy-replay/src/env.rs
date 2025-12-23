@@ -116,10 +116,10 @@ impl<
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
         log::info!("Compiling {} with non-test mode...", path.display());
         let abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
-        let package_names = abi_result.package_names.clone();
         let mut non_test_abi = abi_result.abi()?;
         log::info!("Compiling {} with test mode...", path.display());
         let compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        let package_names = compiled_result.package_names.clone();
         let compiled_result = compiled_result.movy_mock()?;
         log::debug!(
             "test modules are {}",
