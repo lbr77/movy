@@ -40,7 +40,14 @@ move-vm-stack = { workspace = true }
 mdbx-derive = {workspace = true}
 z3 = {workspace = true } 
 tokio-stream = {workspace = true}
-movy-analysis = {workspace = true}
+tempfile = {workspace = true}
 
+movy-analysis = {workspace = true}
 movy-types = {workspace = true}
 movy-sui = {workspace = true}
+
+[build-dependencies]
+tempfile.workspace = true
+serde_json.workspace = true
+movy-sui = {workspace = true}
+movy-types = {workspace = true}

@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::Write,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -64,17 +65,15 @@ impl<
 
     pub fn install_std(&self, test: bool) -> Result<(), MovyError> {
         // This is pretty hacky but works
-        let hello_std = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("hello_std");
-        let (_, resolved) = build_package_resolved(&hello_std, test)?;
+        let stds = if test {
+            include_bytes!(concat!(env!("OUT_DIR"), "/std.testing")).to_vec()
+        } else {
+            include_bytes!(concat!(env!("OUT_DIR"), "/std")).to_vec()
+        };
+        let stds: Vec<SuiCompiledPackage> = serde_json::from_slice(&stds)?;
+
         let flag = if test { "testing" } else { "non-testing" };
-        for package in resolved.package_table.values() {
-            log::info!(
-                "Building {} std at {}",
-                flag,
-                package.package_path.display()
-            );
-            let out =
-                SuiCompiledPackage::build_all_unpublished_from_folder(&package.package_path, test)?;
+        for out in stds {
             let out = out.movy_mock()?;
             if out.package_id != ObjectID::ZERO {
                 log::info!("Committing {} std {}", flag, out.package_id);

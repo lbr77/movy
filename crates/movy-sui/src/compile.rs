@@ -13,6 +13,7 @@ use movy_types::{
     error::MovyError,
     input::MoveAddress,
 };
+use serde::{Deserialize, Serialize};
 use sui_move_build::{BuildConfig, CompiledPackage, build_from_resolution_graph, implicit_deps};
 use sui_package_management::{PublishedAtError, system_package_versions::latest_system_packages};
 use sui_types::{base_types::ObjectID, digests::get_mainnet_chain_identifier};
@@ -43,7 +44,7 @@ pub fn build_package_resolved(
     Ok((artifacts, resolution_graph))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuiCompiledPackage {
     pub package_id: ObjectID,
     pub package_name: String,
