@@ -220,13 +220,15 @@ impl SuiFuzzArgs {
         }
 
         let mut exclude_modules = self.filters.exclude_modules.clone().unwrap_or_default();
-        exclude_modules.extend(
-            ["movy::context", "movy::oracle", "movy::log"]
-                .into_iter()
-                .filter_map(|m| ModuleSelector::from_str(m).ok()),
-        );
-        exclude_modules.sort();
-        exclude_modules.dedup();
+        if local_name_map.contains_key("movy") {
+            exclude_modules.extend(
+                ["movy::context", "movy::oracle", "movy::log"]
+                    .into_iter()
+                    .filter_map(|m| ModuleSelector::from_str(m).ok()),
+            );
+            exclude_modules.sort();
+            exclude_modules.dedup();
+        }
 
         let filters = TargetFilters {
             include_packages: resolve_packages(&self.filters.include_packages, &local_name_map)?,
