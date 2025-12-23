@@ -1,14 +1,13 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::Write,
-    path::{Path, PathBuf},
+    path::Path,
     str::FromStr,
 };
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
 use movy_sui::{
-    compile::{SuiCompiledPackage, build_package_resolved},
+    compile::SuiCompiledPackage,
     database::cache::ObjectSuiStoreCommit,
     rpc::graphql::{GraphQlClient, OwnerKind},
 };

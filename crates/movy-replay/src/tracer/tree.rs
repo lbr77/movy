@@ -137,7 +137,7 @@ impl Tracer for TreeTracer {
         let inner = &mut self.inner;
         inner.evs.push(event.clone());
         match event {
-            TraceEvent::OpenFrame { frame, gas_left } => {
+            TraceEvent::OpenFrame { frame, gas_left: _ } => {
                 let current = inner.current_calls();
                 let idx_len = current.len();
                 current.push(FrameTraced {
@@ -149,9 +149,9 @@ impl Tracer for TreeTracer {
                 inner.call_idxs.push(idx_len);
             }
             TraceEvent::CloseFrame {
-                frame_id,
+                frame_id: _,
                 return_,
-                gas_left,
+                gas_left: _,
             } => {
                 let current = inner.current_frame();
                 if current.is_none() {

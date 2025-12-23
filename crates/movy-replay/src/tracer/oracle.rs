@@ -2,7 +2,7 @@ use move_trace_format::format::TraceEvent;
 use move_vm_stack::Stack;
 use movy_types::{
     error::MovyError,
-    input::{FunctionIdent, InputArgument, MoveSequence},
+    input::{FunctionIdent, MoveSequence},
     oracle::OracleFinding,
 };
 use sui_types::effects::TransactionEffects;

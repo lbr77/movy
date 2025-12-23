@@ -104,15 +104,13 @@ fn append_hook_call<S>(
 
     let mut fixed_args: BTreeMap<u16, (SequenceArgument, MoveTypeTag)> = BTreeMap::new();
     let mut fixed_ty_args: BTreeMap<u16, MoveTypeTag> = BTreeMap::new();
-    if let Some(ctx) = ctx_arg {
-        if let Some(param_ty) = hook_abi
-            .parameters
-            .get(0)
+    if let Some(ctx) = ctx_arg
+        && let Some(param_ty) = hook_abi
+            .parameters.first()
             .and_then(|p| p.subst(&BTreeMap::new()))
         {
             fixed_args.insert(0, (ctx, param_ty));
         }
-    }
     if let Some((target_call, target_abi, maybe_idx)) = target {
         let ty_args_map = target_call
             .type_arguments
@@ -129,7 +127,7 @@ fn append_hook_call<S>(
             .arguments
             .iter()
             .zip(target_abi.parameters.iter())
-            .filter_map(|(arg, param)| param.subst(&ty_args_map).map(|ty| (ty, arg.clone())))
+            .filter_map(|(arg, param)| param.subst(&ty_args_map).map(|ty| (ty, *arg)))
             .collect();
         if let Some(target_idx) = maybe_idx {
             let ret_args = if target_abi.return_paramters.len() == 1 {
@@ -163,13 +161,13 @@ fn append_hook_call<S>(
                 .enumerate()
                 .find(|(i, (ty, _))| !used[*i] && *ty == param_ty)
             {
-                fixed_args.insert(idx as u16, (arg.clone(), param_ty.clone()));
+                fixed_args.insert(idx as u16, (*arg, param_ty.clone()));
                 used[cand_idx] = true;
             }
         }
     }
 
-    let used_arguments = fixed_args.values().map(|(arg, _)| arg.clone()).collect();
+    let used_arguments = fixed_args.values().map(|(arg, _)| *arg).collect();
     if append_function(
         state,
         ptb,
@@ -240,7 +238,7 @@ where
 
     // Sequence-level pre hooks use the global context if available.
     for hook in sequence_hooks.pre_hooks.iter() {
-        append_hook_call(state, &mut ptb, hook, None, global_ctx.clone());
+        append_hook_call(state, &mut ptb, hook, None, global_ctx);
     }
 
     for cmd in base.commands.iter() {
@@ -263,8 +261,8 @@ where
                         &movecall.function,
                     )
                     .cloned();
-                if let Some(target_abi) = target_abi {
-                    if let Some(hooks) = function_hooks.get(&func_ident) {
+                if let Some(target_abi) = target_abi
+                    && let Some(hooks) = function_hooks.get(&func_ident) {
                         let mut hook_ctx: Option<SequenceArgument> = None;
                         if let Some((create_ctx, _)) = context_idents.as_ref() {
                             if let Some((_, rets)) = append_function(
@@ -291,7 +289,7 @@ where
                                 &mut ptb,
                                 hook,
                                 Some((&remapped_call, &target_abi, None)),
-                                hook_ctx.clone(),
+                                hook_ctx,
                             );
                         }
                         let main_idx = ptb.commands.len() as u16;
@@ -304,7 +302,7 @@ where
                                 &mut ptb,
                                 hook,
                                 Some((&remapped_call, &target_abi, Some(main_idx))),
-                                hook_ctx.clone(),
+                                hook_ctx,
                             );
                         }
                         if let (Some(ctx_arg), Some((_, destroy_ctx)), Some(param_ty)) =
@@ -325,7 +323,6 @@ where
                         }
                         continue;
                     }
-                }
                 let new_idx = ptb.commands.len() as u16;
                 ptb.commands.push(MoveSequenceCall::Call(remapped_call));
                 index_map.push(new_idx);
@@ -339,11 +336,11 @@ where
     }
 
     for hook in sequence_hooks.post_hooks.iter() {
-        append_hook_call(state, &mut ptb, hook, None, global_ctx.clone());
+        append_hook_call(state, &mut ptb, hook, None, global_ctx);
     }
 
     if let Some((_, destroy_ctx)) = context_idents.as_ref() {
-        if let (Some(ctx_arg), Some(param_ty)) = (global_ctx.clone(), destroy_param_ty.clone()) {
+        if let (Some(ctx_arg), Some(param_ty)) = (global_ctx, destroy_param_ty.clone()) {
             let mut fixed_args = BTreeMap::new();
             fixed_args.insert(0u16, (ctx_arg, param_ty));
             let _ = append_function(

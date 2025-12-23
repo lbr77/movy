@@ -124,7 +124,7 @@ impl FromStr for SuiGrpcArg {
                 None,
             ))
         } else if tks.len() == 2 && tks[0].to_lowercase() == "quicknode" {
-            let url = url::Url::parse(tks[1]).map_err(|e| eyre!("invalid url {}", tks[1]))?;
+            let url = url::Url::parse(tks[1]).map_err(|_e| eyre!("invalid url {}", tks[1]))?;
             Ok(Self::QuickNode(
                 format!(
                     "{}://{}:9000",

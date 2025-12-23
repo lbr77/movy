@@ -123,7 +123,7 @@ where
         }
 
         let db = CachedStore::new(&self.executor.db);
-        self.oracles.pre_execution(&db, state, &input.sequence())?;
+        self.oracles.pre_execution(&db, state, input.sequence())?;
 
         trace!("Executing input: {}", input.sequence());
 

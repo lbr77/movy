@@ -15,7 +15,7 @@ use movy_replay::{
     meta::Metadata,
 };
 use movy_sui::database::cache::ObjectSuiStoreCommit;
-use movy_types::{abi::MoveAbiSignatureToken, input::MoveStructTag};
+use movy_types::abi::MoveAbiSignatureToken;
 use movy_types::{
     abi::{
         MoveAbility, MoveFunctionAbi, MoveFunctionVisibility, MoveModuleAbi, MoveModuleId,
@@ -309,36 +309,30 @@ fn apply_function_filters(
         .filter(|func| {
             let pkg = func.0.module_address;
             let module_id = &func.0;
-            if let Some(set) = &include_pkgs {
-                if !set.contains(&pkg) {
+            if let Some(set) = &include_pkgs
+                && !set.contains(&pkg) {
                     return false;
                 }
-            }
-            if let Some(set) = &exclude_pkgs {
-                if set.contains(&pkg) {
+            if let Some(set) = &exclude_pkgs
+                && set.contains(&pkg) {
                     return false;
                 }
-            }
-            if let Some(set) = &include_funcs {
-                if !set.contains(func) {
+            if let Some(set) = &include_funcs
+                && !set.contains(func) {
                     return false;
                 }
-            }
-            if let Some(set) = &exclude_funcs {
-                if set.contains(func) {
+            if let Some(set) = &exclude_funcs
+                && set.contains(func) {
                     return false;
                 }
-            }
-            if let Some(set) = &include_modules {
-                if !set.contains(module_id) {
+            if let Some(set) = &include_modules
+                && !set.contains(module_id) {
                     return false;
                 }
-            }
-            if let Some(set) = &exclude_modules {
-                if set.contains(module_id) {
+            if let Some(set) = &exclude_modules
+                && set.contains(module_id) {
                     return false;
                 }
-            }
             true
         })
         .collect()
@@ -531,7 +525,7 @@ impl FuzzMetadata {
         checkpoint: u64,
         epoch: u64,
         epoch_ms: u64,
-        mut filters: TargetFilters,
+        filters: TargetFilters,
     ) -> Result<Self, MovyError>
     where
         T: ObjectStoreCachedStore

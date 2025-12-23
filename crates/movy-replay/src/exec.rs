@@ -7,7 +7,6 @@ use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use movy_sui::{compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit};
 use movy_types::{error::MovyError, object::MoveOwner};
-use serde::{Deserialize, Serialize};
 use sui_types::{
     TypeTag,
     base_types::{ObjectID, SuiAddress},
@@ -175,7 +174,7 @@ where
             None
         };
         trace!("Tx digest is {}", tx_data.digest());
-        let (store, gas_status, effects, timing, result) =
+        let (store, gas_status, effects, _timing, result) =
             self.executor.execute_transaction_to_effects(
                 &self.db,
                 &self.protocol_config,

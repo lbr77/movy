@@ -546,7 +546,7 @@ impl ConcolicState {
                         let bit_width = value_bitwidth(true_lhs);
                         let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
                         match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => {
+                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Value(l), SymbolValue::Unknown) => {
@@ -571,7 +571,7 @@ impl ConcolicState {
                         let bit_width = value_bitwidth(true_lhs);
                         let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
                         match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => {
+                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Value(l), SymbolValue::Unknown) => {
@@ -596,7 +596,7 @@ impl ConcolicState {
                         let bit_width = value_bitwidth(true_lhs);
                         let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
                         match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => {
+                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Value(l), SymbolValue::Unknown) => {
@@ -621,7 +621,7 @@ impl ConcolicState {
                         let true_r = value_to_u256(true_rhs).unchecked_as_u32();
                         let threshold = Self::max_u_bits(bit_width);
                         match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => {
+                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Value(l), SymbolValue::Unknown) => {
@@ -630,7 +630,7 @@ impl ConcolicState {
                                 self.stack.push(SymbolValue::Value(shl_mod));
                                 return Some(shl.gt(&threshold)); // cause overflow
                             }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                            (SymbolValue::Unknown, SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Unknown, SymbolValue::Unknown) => {
@@ -641,19 +641,19 @@ impl ConcolicState {
                     Bytecode::Shr => {
                         let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
                         let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
+                        let _true_lhs = stack_iter.next().unwrap();
                         let true_rhs = stack_iter.next().unwrap();
 
                         let true_r = value_to_u256(true_rhs).unchecked_as_u32();
                         match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => {
+                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Value(l), SymbolValue::Unknown) => {
                                 let shr = l / int_two_pow(true_r);
                                 self.stack.push(SymbolValue::Value(shr));
                             }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                            (SymbolValue::Unknown, SymbolValue::Value(_r)) => {
                                 self.stack.push(SymbolValue::Unknown);
                             }
                             (SymbolValue::Unknown, SymbolValue::Unknown) => {

@@ -8,7 +8,7 @@ fn remap_arg_with_map(arg: &SequenceArgument, mapping: &[Option<u16>]) -> Option
         SequenceArgument::NestedResult(i, j) => mapping
             .get(*i as usize)
             .and_then(|new| new.map(|n| SequenceArgument::NestedResult(n, *j))),
-        _ => Some(arg.clone()),
+        _ => Some(*arg),
     }
 }
 
@@ -25,7 +25,7 @@ pub fn remap_arg(arg: &SequenceArgument, mapping: &[u16]) -> SequenceArgument {
             }),
             *j,
         ),
-        _ => arg.clone(),
+        _ => *arg,
     }
 }
 

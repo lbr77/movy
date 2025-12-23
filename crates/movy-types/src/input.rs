@@ -565,7 +565,7 @@ pub struct MoveCall {
 }
 
 impl MoveCall {
-    fn fmt_with<F>(&self, mut fmt_arg: F) -> String
+    fn fmt_with<F>(&self, fmt_arg: F) -> String
     where
         F: FnMut(&SequenceArgument) -> String,
     {

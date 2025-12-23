@@ -234,14 +234,14 @@ impl<S: HasTestcase<I>, I, T> HasTestcase<I> for SuperState<S, T> {
     fn testcase(
         &self,
         id: libafl::corpus::CorpusId,
-    ) -> Result<std::cell::Ref<libafl::corpus::Testcase<I>>, libafl::Error> {
+    ) -> Result<std::cell::Ref<'_, libafl::corpus::Testcase<I>>, libafl::Error> {
         self.state.testcase(id)
     }
 
     fn testcase_mut(
         &self,
         id: libafl::corpus::CorpusId,
-    ) -> Result<std::cell::RefMut<libafl::corpus::Testcase<I>>, libafl::Error> {
+    ) -> Result<std::cell::RefMut<'_, libafl::corpus::Testcase<I>>, libafl::Error> {
         self.state.testcase_mut(id)
     }
 }

@@ -207,7 +207,7 @@ impl SuiFuzzArgs {
             abis.insert(abi.package_id, abi);
             testing_abis.insert(testing_pkg, testing_abi);
             for name in names {
-                local_name_map.entry(name).or_insert(testing_pkg.into());
+                local_name_map.entry(name).or_insert(testing_pkg);
             }
         }
         debug!("Local name map: {:?}", local_name_map);

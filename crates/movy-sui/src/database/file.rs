@@ -313,7 +313,7 @@ impl<T> MDBXCachedStore<T> {
         })
     }
 
-    fn cache_resolver_sync(&self, object: Object, upper: u64) -> Result<(), MovyError> {
+    fn cache_resolver_sync(&self, object: Object, _upper: u64) -> Result<(), MovyError> {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 let tx = self.env.begin_rw_txn().await?;

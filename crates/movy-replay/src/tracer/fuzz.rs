@@ -347,7 +347,7 @@ where
     fn notify(
         &mut self,
         event: &TraceEvent,
-        writer: &mut move_trace_format::interface::Writer<'_>,
+        _writer: &mut move_trace_format::interface::Writer<'_>,
         stack: Option<&move_vm_stack::Stack>,
     ) {
         if let Err(e) = self.notify_event(event, stack) {

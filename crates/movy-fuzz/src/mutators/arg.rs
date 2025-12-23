@@ -128,7 +128,7 @@ where
         &movecall.module_name,
         &movecall.function,
     );
-    let origin_module_id = {
+    let _origin_module_id = {
         let meta = state.fuzz_state();
         meta.get_package_metadata(&target_function.0.module_address)
             .unwrap()

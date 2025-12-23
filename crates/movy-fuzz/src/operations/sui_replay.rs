@@ -1,8 +1,7 @@
 use libafl::{
-    Evaluator, HasMetadata, NopFuzzer, StdFuzzer,
+    Evaluator, HasMetadata, StdFuzzer,
     corpus::{Corpus, InMemoryCorpus},
     events::SimpleEventManager,
-    executors::Executor,
     feedback_and_fast,
     feedbacks::{CrashFeedback, ExitKindFeedback, MaxMapPow2Feedback},
     monitors::SimpleMonitor,
@@ -19,7 +18,6 @@ use movy_replay::{
 use movy_sui::database::cache::ObjectSuiStoreCommit;
 use movy_types::error::MovyError;
 use sui_types::{
-    base_types::ObjectID,
     effects::TransactionEffectsAPI,
     storage::{BackingPackageStore, BackingStore, ObjectStore},
 };
