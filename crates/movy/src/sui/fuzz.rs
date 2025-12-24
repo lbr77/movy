@@ -143,6 +143,24 @@ pub struct SuiFuzzArgs {
     pub target: SuiTargetArgs,
     #[clap(flatten)]
     pub filters: FuzzTargetArgs,
+    #[arg(
+        long,
+        help = "Detect typed bug via abort code 19260817 instead of oracle event",
+        default_value_t = false
+    )]
+    pub typed_bug_abort: bool,
+    #[arg(
+        long,
+        help = "Disable profit oracle (ProceedsOracle)",
+        default_value_t = false
+    )]
+    pub disable_profit_oracle: bool,
+    #[arg(
+        long,
+        help = "Disable defect oracles (others including typed bug event-based checks)",
+        default_value_t = false
+    )]
+    pub disable_defects_oracle: bool,
 }
 
 impl SuiFuzzArgs {
@@ -264,7 +282,15 @@ impl SuiFuzzArgs {
         tokio::task::spawn_blocking(move || {
             let inner = testing_env.into_inner();
             let env = SuiTestingEnv::new(Arc::new(inner));
-            sui_fuzz::fuzz(meta, env, &self.output, self.time_limit)
+            sui_fuzz::fuzz(
+                meta,
+                env,
+                &self.output,
+                self.time_limit,
+                self.typed_bug_abort,
+                self.disable_profit_oracle,
+                self.disable_defects_oracle,
+            )
         })
         .await??;
         Ok(())

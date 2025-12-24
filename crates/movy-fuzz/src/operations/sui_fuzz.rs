@@ -35,19 +35,23 @@ use movy_types::error::MovyError;
 use sui_types::storage::BackingStore;
 use sui_types::storage::{BackingPackageStore, ObjectStore};
 
-pub fn oracles<T, S, E>(disabled: bool) -> impl for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>
+pub fn oracles<T, S, E>(
+    typed_bug_abort: bool,
+    disable_profit_oracle: bool,
+    disable_defects_oracle: bool,
+) -> impl for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>
 where
     T: 'static + ObjectStore,
     S: HasMetadata + HasExtraState<ExtraState = ExtraNonSerdeFuzzState<E>> + HasFuzzMetadata,
 {
     tuple_list!(
-        CouldDisabledOralce::new(BoolJudgementOracle, disabled),
-        CouldDisabledOralce::new(InfiniteLoopOracle::default(), disabled),
-        CouldDisabledOralce::new(PrecisionLossOracle, disabled),
-        CouldDisabledOralce::new(TypeConversionOracle, disabled),
-        CouldDisabledOralce::new(OverflowOracle, disabled),
-        CouldDisabledOralce::new(ProceedsOracle::default(), disabled),
-        CouldDisabledOralce::new(TypedBugOracle, disabled),
+        CouldDisabledOralce::new(BoolJudgementOracle, disable_defects_oracle),
+        CouldDisabledOralce::new(InfiniteLoopOracle::default(), disable_defects_oracle),
+        CouldDisabledOralce::new(PrecisionLossOracle, disable_defects_oracle),
+        CouldDisabledOralce::new(TypeConversionOracle, disable_defects_oracle),
+        CouldDisabledOralce::new(OverflowOracle, disable_defects_oracle),
+        CouldDisabledOralce::new(ProceedsOracle::default(), disable_profit_oracle),
+        CouldDisabledOralce::new(TypedBugOracle::new(typed_bug_abort), disable_defects_oracle),
     )
 }
 
@@ -56,6 +60,9 @@ fn fuzz_impl<T>(
     env: SuiTestingEnv<T>,
     output: &Option<PathBuf>,
     time_limit: Option<u64>,
+    typed_bug_abort: bool,
+    disable_profit_oracle: bool,
+    disable_defects_oracle: bool,
 ) -> Result<(), MovyError>
 where
     T: ObjectStoreCachedStore
@@ -124,8 +131,11 @@ where
         executor: executor_inner,
         ob: tuple_list!(code_observer),
         attacker,
-        oracles: oracles(true),
-        disable_oracles: false,
+        oracles: oracles(
+            typed_bug_abort,
+            disable_profit_oracle,
+            disable_defects_oracle,
+        ),
         epoch: state.fuzz_state().epoch,
         epoch_ms: state.fuzz_state().epoch_ms,
         ph: std::marker::PhantomData,
@@ -240,7 +250,18 @@ pub fn fuzz(
     >,
     output: &Option<PathBuf>,
     time_limit: Option<u64>,
+    typed_bug_abort: bool,
+    disable_profit_oracle: bool,
+    disable_defects_oracle: bool,
 ) -> Result<(), MovyError> {
-    fuzz_impl(meta, env, output, time_limit)?;
+    fuzz_impl(
+        meta,
+        env,
+        output,
+        time_limit,
+        typed_bug_abort,
+        disable_profit_oracle,
+        disable_defects_oracle,
+    )?;
     Ok(())
 }

@@ -75,7 +75,6 @@ pub struct SuiFuzzExecutor<T, OT, RT, I, S> {
     // pub minted_gas: Object,
     // pub log_tracer: Option<SuiLogTracer>,
     pub ph: PhantomData<(I, S)>,
-    pub disable_oracles: bool,
     pub epoch: u64,
     pub epoch_ms: u64,
 }
@@ -202,9 +201,7 @@ where
         if !oracle_vulns.is_empty() {
             trace_outcome.findings.extend(oracle_vulns.iter().cloned());
         }
-        let kind = if self.disable_oracles {
-            ExitKind::Ok
-        } else if !oracle_vulns.is_empty() {
+        let kind = if !oracle_vulns.is_empty() {
             ExitKind::Crash
         } else {
             trace_outcome.verdict
