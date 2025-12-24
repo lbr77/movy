@@ -232,7 +232,7 @@ fn collect_target_functions(
     let mut target_functions: Vec<FunctionIdent> = vec![];
 
     for package_addr in target_packages.iter() {
-        let Some(package_meta) = base.get_package_metadata(package_addr) else {
+        let Some(package_meta) = base.get_original_package_metadata(package_addr) else {
             continue;
         };
         for module in package_meta.modules.iter() {
