@@ -5823,6 +5823,7 @@ dependencies = [
  "serde_json",
  "serde_json_any_key",
  "sui-execution",
+ "sui-json-rpc-types",
  "sui-types",
  "tempfile",
  "tokio",

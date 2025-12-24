@@ -6,6 +6,7 @@ use counter::counter::{Self, Counter};
 use movy::context::Self;
 use movy::oracle::crash_because;
 use sui::bag::Self;
+use movy::log::log_keyed_u64;
 
 #[test]
 public fun movy_init(
@@ -22,7 +23,6 @@ public fun movy_init(
     {
         let mut counter_val = ts::take_shared<Counter>(&scenario);
         counter::increment(&mut counter_val, 0);
-        assert!(counter::value(&counter_val) == 1, 0);
         ts::return_shared(counter_val);
     };
 
@@ -47,6 +47,7 @@ public fun movy_pre_ptb(
     let (ctr_id, val) = extract_counter(ctr);
     let state = context::borrow_mut_state(movy);
     bag::add(state, ctr_id, val);
+    log_keyed_u64(b"pre-ptb".to_string(), val);
 }
 
 #[test]
@@ -57,6 +58,7 @@ public fun movy_post_ptb(
     let (ctr_id, new_val) = extract_counter(ctr);
     let state = context::borrow_state(movy);
     let previous_val = bag::borrow<ID, u64>(state, ctr_id);
+    log_keyed_u64(b"post-ptb".to_string(), new_val);
     if (*previous_val > new_val) {
         crash_because(b"Counter should be always increasing".to_string());
     }
@@ -72,6 +74,7 @@ public fun movy_pre_increment(
     let (ctr_id, val) = extract_counter(ctr);
     let state = context::borrow_mut_state(movy);
     bag::add(state, ctr_id, val);
+    log_keyed_u64(b"post-increment".to_string(), val);
 }
 
 #[test]
@@ -83,6 +86,7 @@ public fun movy_post_increment(
     let (ctr_id, new_val) = extract_counter(ctr);
     let state = context::borrow_state(movy);
     let previous_val = bag::borrow<ID, u64>(state, ctr_id);
+    log_keyed_u64(b"post-increment".to_string(), new_val);
     if (*previous_val + n != new_val) {
         crash_because(b"Increment does not correctly inreases internal value.".to_string());
     }

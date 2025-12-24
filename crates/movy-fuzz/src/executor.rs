@@ -166,6 +166,24 @@ where
             stage_idx,
             success,
         };
+
+        if log::log_enabled!(log::Level::Debug) {
+            for ev in events.iter() {
+                if let Some((st, ev)) = state.fuzz_state().decode_sui_event(ev)? {
+                    log::debug!(
+                        "Event: {}({})",
+                        st.to_canonical_string(true),
+                        serde_json::to_string(&ev)
+                            .unwrap_or_else(|e| format!("json err({}): {:?}", e, ev))
+                    );
+                } else {
+                    log::debug!(
+                        "Event {} missing for decoding",
+                        ev.type_.to_canonical_string(true)
+                    );
+                }
+            }
+        }
         let events: Vec<_> = events.into_iter().map(|e| e.into()).collect();
 
         // Expose preliminary outcome so oracles can inspect events.

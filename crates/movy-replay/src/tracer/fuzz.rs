@@ -209,6 +209,7 @@ where
                     frame.module.name(),
                     &frame.function_name
                 );
+                log::debug!("Entering {}", &package);
                 self.current_functions.push(FunctionIdent::new(
                     &(*frame.module.address()).into(),
                     &frame.module.name().to_string(),
