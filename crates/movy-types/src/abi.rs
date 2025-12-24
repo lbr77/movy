@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Display, str::FromStr};
+use std::{collections::BTreeMap, fmt::Display, ops::Deref, str::FromStr};
 
 use alloy_primitives::{U128, U256};
 use color_eyre::eyre::eyre;
@@ -7,11 +7,15 @@ use move_binary_format::{
     CompiledModule,
     file_format::{
         AbilitySet, DatatypeHandleIndex, DatatypeTyParameter, FunctionDefinition, FunctionHandle,
-        ModuleHandle, SignatureToken, Visibility,
+        ModuleHandle, SignatureToken, StructDefinition, Visibility,
     },
 };
+use move_core_types::{
+    annotated_value::MoveTypeLayout,
+    annotated_value::{MoveFieldLayout, MoveStructLayout},
+};
 use serde::{Deserialize, Serialize};
-use sui_types::{base_types::ObjectID, object::Object};
+use sui_types::{Identifier, base_types::ObjectID, object::Object};
 
 use crate::{
     error::MovyError,
@@ -119,14 +123,20 @@ impl From<DatatypeTyParameter> for MoveStructTypeParameters {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct MoveStructAbi {
+pub struct MoveStructField {
+    pub name: String,
+    pub ty: MoveAbiSignatureToken,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct MoveStructHandle {
     pub module_id: MoveModuleId,
     pub struct_name: String,
     pub abilities: MoveAbility,
     pub type_parameters: Vec<MoveStructTypeParameters>,
 }
 
-impl MoveStructAbi {
+impl MoveStructHandle {
     pub fn from_module_idx(idx: DatatypeHandleIndex, module: &CompiledModule) -> Self {
         let dty = module.datatype_handle_at(idx);
         let sname = module.identifier_at(dty.name).to_string();
@@ -152,6 +162,66 @@ impl MoveStructAbi {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct MoveStructAbi {
+    pub handle: MoveStructHandle,
+    pub fields: Vec<MoveStructField>,
+}
+
+impl Deref for MoveStructAbi {
+    type Target = MoveStructHandle;
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
+impl MoveStructAbi {
+    pub fn to_move_struct_layout(
+        &self,
+        typs: &[MoveTypeLayout],
+        struct_defs: &BTreeMap<(MoveModuleId, String), MoveStructAbi>,
+    ) -> Option<MoveStructLayout> {
+        let mut fields = vec![];
+
+        for fd in self.fields.iter() {
+            let ty = fd.ty.to_move_type_layout(typs, struct_defs)?;
+            let field = MoveFieldLayout::new(Identifier::new(fd.name.clone()).ok()?, ty);
+            fields.push(field);
+        }
+        Some(MoveStructLayout::new(
+            MoveStructTag {
+                address: self.module_id.module_address.clone(),
+                module: self.module_id.module_name.clone(),
+                name: self.struct_name.clone(),
+                tys: vec![],
+            }
+            .try_into()
+            .ok()?,
+            fields,
+        ))
+    }
+    pub fn from_module_def(def: &StructDefinition, module: &CompiledModule) -> Self {
+        let handle = MoveStructHandle::from_module_idx(def.struct_handle, module);
+        let tys = handle
+            .type_parameters
+            .iter()
+            .map(|v| v.constraints.clone())
+            .collect_vec();
+        let mut fields = vec![];
+        for fd in def.fields().into_iter().flatten() {
+            let ty = MoveAbiSignatureToken::from_sui_token_module(&fd.signature.0, &tys, module);
+            let tyname = module.identifier_at(fd.name).to_string();
+            let field = MoveStructField {
+                name: tyname,
+                ty: ty,
+            };
+            fields.push(field);
+        }
+
+        Self { handle, fields }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MoveAbiSignatureToken {
     Bool,
     U8,
@@ -163,8 +233,8 @@ pub enum MoveAbiSignatureToken {
     Address,
     Signer,
     Vector(Box<MoveAbiSignatureToken>),
-    Struct(MoveStructAbi),
-    StructInstantiation(MoveStructAbi, Vec<MoveAbiSignatureToken>),
+    Struct(MoveStructHandle),
+    StructInstantiation(MoveStructHandle, Vec<MoveAbiSignatureToken>),
     TypeParameter(u16, MoveAbility),
     Reference(Box<MoveAbiSignatureToken>),
     MutableReference(Box<MoveAbiSignatureToken>),
@@ -300,6 +370,62 @@ impl MoveAbiSignatureToken {
             _ => None,
         }
     }
+
+    pub fn to_move_type_layout(
+        &self,
+        typs: &[MoveTypeLayout],
+        struct_defs: &BTreeMap<(MoveModuleId, String), MoveStructAbi>,
+    ) -> Option<MoveTypeLayout> {
+        match self {
+            MoveAbiSignatureToken::Address => Some(MoveTypeLayout::Address),
+            MoveAbiSignatureToken::Signer => Some(MoveTypeLayout::Signer),
+            MoveAbiSignatureToken::Bool => Some(MoveTypeLayout::Bool),
+            MoveAbiSignatureToken::U8 => Some(MoveTypeLayout::U8),
+            MoveAbiSignatureToken::U16 => Some(MoveTypeLayout::U16),
+            MoveAbiSignatureToken::U32 => Some(MoveTypeLayout::U32),
+            MoveAbiSignatureToken::U64 => Some(MoveTypeLayout::U64),
+            MoveAbiSignatureToken::U128 => Some(MoveTypeLayout::U128),
+            MoveAbiSignatureToken::U256 => Some(MoveTypeLayout::U256),
+            MoveAbiSignatureToken::Struct(st) => {
+                let tp = (st.module_id.clone(), st.struct_name.clone());
+                let st = struct_defs.get(&tp)?;
+
+                let st = st.to_move_struct_layout(typs, struct_defs)?;
+                Some(MoveTypeLayout::Struct(Box::new(st)))
+            }
+            MoveAbiSignatureToken::StructInstantiation(st, insts) => {
+                let tp = (st.module_id.clone(), st.struct_name.clone());
+                let st = struct_defs.get(&tp)?;
+
+                let mut new_typs = vec![];
+
+                for inst in insts {
+                    let typ = inst.to_move_type_layout(typs, struct_defs)?;
+                    new_typs.push(typ);
+                }
+
+                let st = st.to_move_struct_layout(&new_typs, struct_defs)?;
+                Some(MoveTypeLayout::Struct(Box::new(st)))
+            }
+            MoveAbiSignatureToken::TypeParameter(idx, _) => match typs.get(*idx as usize) {
+                Some(ty) => Some(ty.clone()),
+                None => {
+                    log::trace!("type parameter {} missing from typs", idx);
+                    None
+                }
+            },
+            MoveAbiSignatureToken::Vector(v) => Some(MoveTypeLayout::Vector(Box::new(
+                v.to_move_type_layout(typs, struct_defs)?,
+            ))),
+            MoveAbiSignatureToken::Reference(rf) => {
+                Some(rf.to_move_type_layout(typs, struct_defs)?)
+            }
+            MoveAbiSignatureToken::MutableReference(rf) => {
+                Some(rf.to_move_type_layout(typs, struct_defs)?)
+            }
+        }
+    }
+
     pub fn to_type_tag(&self) -> Option<MoveTypeTag> {
         match self {
             Self::Bool => Some(MoveTypeTag::Bool),
@@ -337,6 +463,11 @@ impl MoveAbiSignatureToken {
         tys: &Vec<MoveAbility>,
         module: &CompiledModule,
     ) -> Self {
+        log::trace!(
+            "from_sui_token_module, value is {:?}, tys is {:?}",
+            value,
+            tys
+        );
         match value {
             SignatureToken::Address => Self::Address,
             SignatureToken::Bool => Self::Bool,
@@ -351,12 +482,12 @@ impl MoveAbiSignatureToken {
                 Self::Vector(Box::new(Self::from_sui_token_module(v, tys, module)))
             }
             SignatureToken::Datatype(dty) => {
-                let st = MoveStructAbi::from_module_idx(*dty, module);
+                let st = MoveStructHandle::from_module_idx(*dty, module);
                 Self::Struct(st)
             }
             SignatureToken::DatatypeInstantiation(v) => {
                 let (dty, insts) = *(v.clone());
-                let st = MoveStructAbi::from_module_idx(dty, module);
+                let st = MoveStructHandle::from_module_idx(dty, module);
                 let insts = insts
                     .into_iter()
                     .map(|v| Self::from_sui_token_module(&v, tys, module))
@@ -745,13 +876,14 @@ impl MoveAbiSignatureToken {
             MoveAbiSignatureToken::TypeParameter(index, _) => ty_args
                 .get(index)
                 .cloned()
-                .map(|ty_tag| MoveAbiSignatureToken::from_type_tag(&ty_tag))
+                .map(|ty_tag| MoveAbiSignatureToken::from_type_tag_lossy(&ty_tag))
                 .unwrap_or(self.clone()),
             _ => self.clone(),
         }
     }
 
-    pub fn from_type_tag(ty: &MoveTypeTag) -> Self
+    // TODO: Review the soundness
+    pub fn from_type_tag_lossy(ty: &MoveTypeTag) -> Self
     where
         Self: Sized,
     {
@@ -765,12 +897,12 @@ impl MoveAbiSignatureToken {
             MoveTypeTag::U128 => MoveAbiSignatureToken::U128,
             MoveTypeTag::U256 => MoveAbiSignatureToken::U256,
             MoveTypeTag::Signer => MoveAbiSignatureToken::Signer,
-            MoveTypeTag::Vector(inner) => {
-                MoveAbiSignatureToken::Vector(Box::new(MoveAbiSignatureToken::from_type_tag(inner)))
-            }
+            MoveTypeTag::Vector(inner) => MoveAbiSignatureToken::Vector(Box::new(
+                MoveAbiSignatureToken::from_type_tag_lossy(inner),
+            )),
             MoveTypeTag::Struct(tag) => {
                 if tag.tys.is_empty() {
-                    MoveAbiSignatureToken::Struct(MoveStructAbi {
+                    MoveAbiSignatureToken::Struct(MoveStructHandle {
                         module_id: MoveModuleId {
                             module_address: tag.address,
                             module_name: tag.module.clone(),
@@ -783,10 +915,10 @@ impl MoveAbiSignatureToken {
                     let type_arguments = tag
                         .tys
                         .iter()
-                        .map(MoveAbiSignatureToken::from_type_tag)
+                        .map(MoveAbiSignatureToken::from_type_tag_lossy)
                         .collect();
                     MoveAbiSignatureToken::StructInstantiation(
-                        MoveStructAbi {
+                        MoveStructHandle {
                             module_id: MoveModuleId {
                                 module_address: tag.address,
                                 module_name: tag.module.clone(),
@@ -818,7 +950,7 @@ impl MoveAbiSignatureToken {
 
 impl From<MoveTypeTag> for MoveAbiSignatureToken {
     fn from(value: MoveTypeTag) -> Self {
-        Self::from_type_tag(&value)
+        Self::from_type_tag_lossy(&value)
     }
 }
 
@@ -1058,7 +1190,7 @@ impl MoveModuleAbi {
 
         let mut structs = vec![];
         for st in module.struct_defs() {
-            structs.push(MoveStructAbi::from_module_idx(st.struct_handle, module));
+            structs.push(MoveStructAbi::from_module_def(st, module));
         }
 
         let mut functions = vec![];
@@ -1089,7 +1221,7 @@ impl MovePackageAbi {
         for md in self.modules.iter_mut() {
             md.module_id.module_address = address;
             for st in md.structs.iter_mut() {
-                st.module_id.module_address = address;
+                st.handle.module_id.module_address = address;
             }
             for fc in md.functions.iter_mut() {
                 for ty in fc.parameters.iter_mut() {

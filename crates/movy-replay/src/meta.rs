@@ -7,16 +7,28 @@ use crate::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
     env::SuiTestingEnv,
 };
+use color_eyre::eyre::eyre;
+use move_core_types::{
+    annotated_value::{MoveDatatypeLayout, MoveStruct, MoveValue},
+    language_storage::StructTag,
+};
 use movy_analysis::type_graph::MoveTypeGraph;
 use movy_sui::database::cache::ObjectSuiStoreCommit;
 use movy_types::{
-    abi::{MoveAbility, MovePackageAbi},
+    abi::{
+        MoveAbiSignatureToken, MoveAbility, MoveFunctionAbi, MoveModuleAbi, MoveModuleId,
+        MovePackageAbi, MoveStructAbi,
+    },
     error::MovyError,
     input::{FunctionIdent, MoveAddress, MoveStructTag, MoveTypeTag},
 };
 use serde::{Deserialize, Serialize};
 use serde_json_any_key::*;
-use sui_types::storage::{BackingPackageStore, BackingStore, ObjectStore};
+use sui_json_rpc_types::type_and_fields_from_move_event_data;
+use sui_types::{
+    event::Event,
+    storage::{BackingPackageStore, BackingStore, ObjectStore},
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Metadata {
@@ -28,6 +40,8 @@ pub struct Metadata {
     pub module_address_to_package: BTreeMap<MoveAddress, MoveAddress>,
     pub ability_to_type_tag: BTreeMap<MoveAbility, Vec<MoveTypeTag>>,
     pub function_name_to_idents: BTreeMap<String, Vec<FunctionIdent>>,
+    #[serde(with = "any_key_map")]
+    pub structs_mapping: BTreeMap<(MoveModuleId, String), MoveStructAbi>,
 }
 
 pub struct TargetPackages {
@@ -36,12 +50,146 @@ pub struct TargetPackages {
 }
 
 impl Metadata {
+    pub fn iter_functions(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &MoveAddress,     // package_addr
+            &String,          // module_name
+            &MoveModuleAbi,   // module_data
+            &String,          // func_name
+            &MoveFunctionAbi, // func_data
+        ),
+    > {
+        self.abis.iter().flat_map(|(package_addr, package_meta)| {
+            package_meta.modules.iter().flat_map(move |module_data| {
+                module_data.functions.iter().map(move |func_data| {
+                    (
+                        package_addr,
+                        &module_data.module_id.module_name,
+                        module_data,
+                        &func_data.name,
+                        func_data,
+                    )
+                })
+            })
+        })
+    }
+
     pub fn get_package_metadata(&self, package_id: &MoveAddress) -> Option<&MovePackageAbi> {
+        self.testing_abis.get(
+            self.module_address_to_package
+                .get(package_id)
+                .unwrap_or(package_id),
+        )
+    }
+
+    pub fn get_original_package_metadata(
+        &self,
+        package_id: &MoveAddress,
+    ) -> Option<&MovePackageAbi> {
         self.abis.get(
             self.module_address_to_package
                 .get(package_id)
                 .unwrap_or(package_id),
         )
+    }
+
+    pub fn get_function(
+        &self,
+        package_id: &MoveAddress,
+        module: &str,
+        function: &str,
+    ) -> Option<&MoveFunctionAbi> {
+        self.get_package_metadata(package_id)
+            .and_then(|pkg| {
+                pkg.modules
+                    .iter()
+                    .find(|m| m.module_id.module_name == module)
+            })
+            .and_then(|module| module.functions.iter().find(|f| f.name == function))
+    }
+
+    pub fn get_struct(
+        &self,
+        package_id: &MoveAddress,
+        module: &str,
+        struct_name: &str,
+    ) -> Option<&MoveStructAbi> {
+        self.get_package_metadata(package_id)
+            .and_then(|pkg| {
+                pkg.modules
+                    .iter()
+                    .find(|m| m.module_id.module_name == module)
+            })
+            .and_then(|module| module.structs.iter().find(|s| s.struct_name == struct_name))
+    }
+
+    pub fn get_enum(
+        &self,
+        package_id: &MoveAddress,
+        module: &str,
+        enum_name: &str,
+    ) -> Option<&MoveStructAbi> {
+        self.get_package_metadata(package_id)
+            .and_then(|pkg| {
+                pkg.modules
+                    .iter()
+                    .find(|m| m.module_id.module_name == module)
+            })
+            .and_then(|module| module.structs.iter().find(|s| s.struct_name == enum_name))
+    }
+
+    pub fn get_abilities(
+        &self,
+        package_id: &MoveAddress,
+        module: &str,
+        struct_name: &str,
+    ) -> Option<MoveAbility> {
+        self.get_struct(package_id, module, struct_name)
+            .map(|s| s.abilities)
+            .or(self
+                .get_enum(package_id, module, struct_name)
+                .map(|e| e.abilities))
+    }
+
+    pub fn decode_sui_event(
+        &self,
+        event: &Event,
+    ) -> Result<Option<(StructTag, serde_json::Value)>, MovyError> {
+        log::debug!("Decoding event {}", event.type_.to_canonical_string(true));
+        let id: MoveAddress = event.type_.address.into();
+        if let Some(st) =
+            self.get_struct(&id, event.type_.module.as_str(), event.type_.name.as_str())
+        {
+            let mut typs = vec![];
+            for ty in event.type_.type_params.iter() {
+                let ty = MoveTypeTag::from(ty.clone());
+                let abi_ty = MoveAbiSignatureToken::from_type_tag_lossy(&ty);
+                if let Some(typ) = abi_ty.to_move_type_layout(&[], &self.structs_mapping) {
+                    typs.push(typ);
+                } else {
+                    log::debug!("decode_event: abi_ty {} is mising", &abi_ty);
+                }
+            }
+            if let Some(layout) = st.to_move_struct_layout(&typs, &self.structs_mapping) {
+                let e = Event::move_event_to_move_value(
+                    &event.contents,
+                    MoveDatatypeLayout::Struct(Box::new(layout)),
+                )?;
+                return Ok(Some(type_and_fields_from_move_event_data(e)?));
+            } else {
+                log::debug!(
+                    "can not convert to move struct layout for {} and {:?}",
+                    st.struct_name,
+                    &typs
+                );
+            }
+        } else {
+            log::debug!("the event struct is not known");
+        }
+
+        Ok(None)
     }
 
     pub async fn from_env_filtered<T>(
@@ -150,6 +298,16 @@ impl Metadata {
             type_graph.add_package(package);
         }
 
+        let mut structs_mapping = BTreeMap::new();
+        for (pkg_id, pkg) in testing_abis.iter() {
+            for md in pkg.modules.iter() {
+                for st in md.structs.iter() {
+                    structs_mapping
+                        .insert((md.module_id.clone(), st.struct_name.clone()), st.clone());
+                }
+            }
+        }
+
         let meta = Metadata {
             type_graph,
             abis,
@@ -161,6 +319,7 @@ impl Metadata {
                 .map(|(ability, tags)| (ability, tags.into_iter().collect()))
                 .collect(),
             function_name_to_idents,
+            structs_mapping,
         };
         Ok(meta)
     }
