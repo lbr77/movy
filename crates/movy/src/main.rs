@@ -34,7 +34,10 @@ fn main() {
         // Allows failure
         let _ = dotenvy::dotenv();
     }
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()

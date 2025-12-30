@@ -125,12 +125,12 @@ impl SuiCompiledPackage {
             self.published_dependencies.clone().into_iter().collect();
         for md in self.modules.iter() {
             let md = Self::mock_module(md);
-            deps.extend(
-                md.immediate_dependencies()
-                    .into_iter()
-                    .map(|v| ObjectID::from(*v.address()))
-                    .filter(|v| v != &self.package_id),
-            );
+            // deps.extend(
+            //     md.immediate_dependencies()
+            //         .into_iter()
+            //         .map(|v| ObjectID::from(*v.address()))
+            //         .filter(|v| v != &self.package_id),
+            // );
             new_package.modules.push(md);
         }
         new_package.dependencies = deps.into_iter().collect();
@@ -155,6 +155,7 @@ impl SuiCompiledPackage {
             Err(PublishedAtError::NotPresent) => ObjectID::ZERO,
             _ => return Err(eyre!("Invalid published-at: {:?}", &artifacts.published_at).into()),
         };
+        debug!("Root address is {}", root_address);
         let package_name = artifacts
             .package
             .compiled_package_info
@@ -172,20 +173,37 @@ impl SuiCompiledPackage {
         let modules = artifacts
             .package
             .all_compiled_units()
-            .filter(|m| root_address == m.address.into_inner().into())
+            .filter(|m| {
+                debug!("Compiled module address: {}", m.address.into_inner());
+                root_address == m.address.into_inner().into()
+            })
             .map(|m| m.module.clone())
             .collect::<Vec<_>>();
+        if modules.len() == 0 {
+            return Err(eyre!(
+                "Compiling {} yields 0 modules for root {}",
+                folder.display(),
+                root_address
+            )
+            .into());
+        }
         debug!("Package {} has {} modules", root_address, modules.len());
-        let deps = modules
+        // let deps = modules
+        //     .iter()
+        //     .flat_map(|m| {
+        //         m.immediate_dependencies()
+        //             .iter()
+        //             .map(|m| m.address().to_owned().into())
+        //             .filter(|a| a != &root_address)
+        //             .collect::<Vec<_>>()
+        //     })
+        //     .chain(artifacts.dependency_ids.published.values().cloned())
+        //     .collect::<BTreeSet<ObjectID>>();
+        let deps = artifacts
+            .dependency_ids
+            .published
             .iter()
-            .flat_map(|m| {
-                m.immediate_dependencies()
-                    .iter()
-                    .map(|m| m.address().to_owned().into())
-                    .filter(|a| a != &root_address)
-                    .collect::<Vec<_>>()
-            })
-            .chain(artifacts.dependency_ids.published.values().cloned())
+            .map(|v| *v.1)
             .collect::<BTreeSet<ObjectID>>();
 
         debug!(
