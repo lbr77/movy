@@ -184,6 +184,7 @@ impl ObjectData {
                 //     continue; // Skip parameters that have the Copy ability
                 // }
                 let instantiated_param = param.subst(ty_args_map).unwrap();
+                let partial_instantiation = param.partial_subst(ty_args_map);
                 existing_objects
                     .get_mut(&instantiated_param)
                     .unwrap_or_else(|| {
@@ -203,25 +204,26 @@ impl ObjectData {
                 if matches!(arg, SequenceArgument::Input(_)) {
                     continue; // Skip input arguments for key store and hot potatoes
                 }
-                if param.is_balance() {
+                if partial_instantiation.is_balance() {
                     balances.retain(|a| *a != *arg); // Remove from balances if it is a balance object
                 }
-                if param.is_key_store() {
+                if partial_instantiation.is_key_store() {
                     key_store_objects.retain(|a| *a != *arg); // Remove from key_store_objects if it is a key store object
                 }
-                if param.is_hot_potato() {
+                if partial_instantiation.is_hot_potato() {
                     hot_potatoes.remove(
                         hot_potatoes
                             .iter()
                             .position(|x| x == &instantiated_param)
                             .unwrap_or_else(|| {
                                 panic!(
-                                    "Expected hot potato object for type {:?}, input {}",
+                                    "Expected hot potato object for type {}, input {}, hot potatoes {:?}",
                                     instantiated_param,
                                     MoveFuzzInput {
                                         sequence: ptb.clone(),
                                         ..Default::default()
-                                    }
+                                    },
+                                    hot_potatoes
                                 )
                             }),
                     );
@@ -265,6 +267,7 @@ impl ObjectData {
                     continue;
                 }
                 let instantiated_ret_ty = ret_ty.subst(ty_args_map).unwrap();
+                let partial_instantiation = ret_ty.partial_subst(ty_args_map);
                 if !matches!(instantiated_ret_ty, MoveTypeTag::Struct(_)) {
                     continue; // Only process struct return types
                 }
@@ -277,13 +280,13 @@ impl ObjectData {
                     .entry(instantiated_ret_ty.clone())
                     .or_default()
                     .push((res_arg, Gate::Owned));
-                if ret_ty.is_balance() {
+                if partial_instantiation.is_balance() {
                     balances.push(res_arg);
                 }
-                if ret_ty.is_key_store() {
+                if partial_instantiation.is_key_store() {
                     key_store_objects.push(res_arg);
                 }
-                if ret_ty.is_hot_potato() {
+                if partial_instantiation.is_hot_potato() {
                     hot_potatoes.push(instantiated_ret_ty);
                 }
             }
@@ -899,7 +902,7 @@ where
             .flat_map(|type_tag| {
                 meta_state
                     .type_graph
-                    .find_consumers(&MoveAbiSignatureToken::from_type_tag_lossy(type_tag))
+                    .find_consumers(&MoveAbiSignatureToken::from_type_tag_lossy(type_tag), true)
                     .iter()
                     .map(|(module_id, consumer_function)| {
                         FunctionIdent::new(

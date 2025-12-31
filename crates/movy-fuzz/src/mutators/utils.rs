@@ -83,6 +83,10 @@ impl StageReplay {
             self.reset_progress();
             return StageReplayAction::Fresh;
         };
+        debug!(
+            "StageReplay decide: current stage idx {}, recorded stage idx {:?}, attempts {}",
+            stage_idx, self.stage_idx, self.attempts
+        );
 
         let prev_stage = self.stage_idx;
         self.stage_idx = match self.stage_idx {
@@ -266,7 +270,7 @@ where
     let mut ty_args = if let Some(stage_idx) = stage_idx {
         let Some(cmd) = ptb.commands.get_mut(*stage_idx) else {
             warn!(
-                "Stage idx {} out of bounds for commands: {:?}",
+                "Stage idx {} out of bounds for commands mutating ty args: {:?}",
                 stage_idx, ptb.commands
             );
             return MutationResult::Skipped;

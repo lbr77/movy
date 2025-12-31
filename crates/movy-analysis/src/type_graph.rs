@@ -4,7 +4,8 @@ use std::{
 };
 
 use movy_types::abi::{
-    MoveAbiSignatureToken, MoveFunctionAbi, MoveModuleAbi, MoveModuleId, MovePackageAbi,
+    MoveAbiSignatureToken, MoveFunctionAbi, MoveFunctionVisibility, MoveModuleAbi, MoveModuleId,
+    MovePackageAbi,
 };
 use petgraph::{graph::NodeIndex, visit::EdgeRef};
 use serde::{Deserialize, Serialize};
@@ -126,6 +127,7 @@ impl MoveTypeGraph {
     pub fn find_consumers(
         &self,
         ty: &MoveAbiSignatureToken,
+        public_only: bool,
     ) -> Vec<(&MoveModuleId, &MoveFunctionAbi)> {
         let mut consumers = vec![];
         for (graph_ty, node) in self.tys.iter() {
@@ -137,6 +139,9 @@ impl MoveTypeGraph {
                     .edges_directed(*node, petgraph::Direction::Outgoing)
                 {
                     if let TypeGraphNode::Function(m, f) = &self.graph[edge.target()] {
+                        if public_only && f.visibility != MoveFunctionVisibility::Public {
+                            continue;
+                        }
                         consumers.push((m, f));
                     }
                 }
@@ -148,6 +153,7 @@ impl MoveTypeGraph {
     pub fn find_producers(
         &self,
         ty: &MoveAbiSignatureToken,
+        public_only: bool,
     ) -> Vec<(MoveModuleId, MoveFunctionAbi)> {
         let mut producers = vec![];
         for (graph_ty, node) in self.tys.iter() {
@@ -159,6 +165,9 @@ impl MoveTypeGraph {
                     .edges_directed(*node, petgraph::Direction::Incoming)
                 {
                     if let TypeGraphNode::Function(m, f) = &self.graph[edge.source()] {
+                        if public_only && f.visibility != MoveFunctionVisibility::Public {
+                            continue;
+                        }
                         producers.push((m.clone(), f.clone()));
                     }
                 }

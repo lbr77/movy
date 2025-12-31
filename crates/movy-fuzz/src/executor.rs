@@ -148,8 +148,18 @@ where
             .expect("tracer should be present when tracing is enabled")
             .outcome();
 
+        trace!("Execution finished with status: {:?}", effects.status());
+
         let (stage_idx, success) = match effects.status() {
-            ExecutionStatus::Failure { command, .. } => (command.map(|c| c), false),
+            ExecutionStatus::Failure { command, .. } => (
+                // command index may be out of bound when meeting non-aborted error
+                if command.is_some_and(|c| c < input.sequence().commands.len()) {
+                    command.clone()
+                } else {
+                    None
+                },
+                false,
+            ),
             _ => (None, true),
         };
         if effects.status().is_err() {
