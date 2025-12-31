@@ -28,7 +28,7 @@ counter = "0x0"
 # The dev-dependencies section allows overriding dependencies for `--test` and
 # `--dev` modes. You can introduce test-only dependencies here.
 # Local = { local = "../path/to/dev-build" }
-movy = {local = "../../move/movy"}
+movy = {git = "https://github.com/BitsLabSec/movy", subdir = "move/movy", rev = "master"}
 
 [dev-addresses]
 # The dev-addresses section allows overwriting named addresses for the `--test`
