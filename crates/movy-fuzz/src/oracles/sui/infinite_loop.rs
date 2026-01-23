@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
+use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
 use serde_json::json;
 
 use movy_replay::tracer::{
@@ -38,7 +37,7 @@ impl<T, S> SuiGeneralOracle<T, S> for InfiniteLoopOracle {
     fn event(
         &mut self,
         event: &TraceEvent,
-        _stack: Option<&Stack>,
+        _trace_state: &TraceState,
         symbol_stack: &ConcolicState,
         current_function: Option<&movy_types::input::FunctionIdent>,
         _state: &mut S,

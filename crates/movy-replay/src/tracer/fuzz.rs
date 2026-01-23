@@ -1,16 +1,15 @@
 use std::{borrow::Cow, collections::BTreeMap, marker::PhantomData};
 
-use color_eyre::eyre::{OptionExt, eyre};
+use color_eyre::eyre::eyre;
 use libafl::{executors::ExitKind, observers::StdMapObserver};
 use libafl_bolts::tuples::{Handle, MatchName, MatchNameRef};
 use log::{trace, warn};
 use move_binary_format::file_format::Bytecode;
 use move_trace_format::{
-    format::{Effect, TraceEvent},
-    interface::Tracer,
+    format::{Effect, TraceEvent, TraceValue},
+    interface::{Tracer, Writer},
+    memory_tracer::TraceState,
 };
-use move_vm_stack::Stack;
-use move_vm_types::values::IntegerValue;
 use movy_types::{error::MovyError, input::FunctionIdent, oracle::OracleFinding};
 
 use crate::tracer::{
@@ -127,6 +126,7 @@ where
 {
     current_functions: Vec<FunctionIdent>,
     coverage: CoverageTracer<'a, OT>,
+    trace_state: TraceState,
     state: &'s mut S,
     outcome: TraceOutcome,
     oracles: &'s mut O,
@@ -147,6 +147,7 @@ where
         Self {
             current_functions: vec![],
             coverage: CoverageTracer::new(ob, ob_name),
+            trace_state: TraceState::new(),
             state,
             outcome: TraceOutcome::new(),
             oracles,
@@ -158,37 +159,19 @@ where
         self.outcome
     }
 
-    fn bin_ops(stack: Option<&Stack>) -> Result<(Magic, Magic), MovyError> {
-        if let Some(stack) = stack {
-            let stack_len = stack.value.len();
-            let rhs = stack
-                .value
-                .get(stack_len - 1)
-                .ok_or_else(|| eyre!("stack less than 2?!"))?
-                .copy_value()?
-                .value_as::<IntegerValue>()?
-                .into();
-            let lhs = stack
-                .value
-                .get(stack_len - 2)
-                .ok_or_else(|| eyre!("stack less than 2?!"))?
-                .copy_value()?
-                .value_as::<IntegerValue>()?
-                .into();
-            Ok((lhs, rhs))
-        } else {
-            Err(eyre!("we need two values on top of stack but get none...").into())
+    fn bin_ops(stack: &[TraceValue]) -> Result<(Magic, Magic), MovyError> {
+        if stack.len() < 2 {
+            return Err(eyre!("stack less than 2?!").into());
         }
+        let lhs = Magic::try_from(&stack[stack.len() - 2])?;
+        let rhs = Magic::try_from(&stack[stack.len() - 1])?;
+        Ok((lhs, rhs))
     }
 
-    pub fn notify_event(
-        &mut self,
-        event: &TraceEvent,
-        stack: Option<&move_vm_stack::Stack>,
-    ) -> Result<(), MovyError> {
+    pub fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError> {
         let oracle_vulns = self.oracles.event(
             event,
-            stack,
+            &self.trace_state,
             &self.outcome.concolic,
             self.current_functions.last(),
             self.state,
@@ -199,7 +182,10 @@ where
         for info in oracle_vulns {
             self.outcome.findings.push(info);
         }
-        let constraint = self.outcome.concolic.notify_event(event, stack);
+        let constraint = self
+            .outcome
+            .concolic
+            .notify_event(event, &self.trace_state);
         trace!("Tracing event: {:?}", event);
         match event {
             TraceEvent::OpenFrame { frame, gas_left: _ } => {
@@ -252,7 +238,7 @@ where
                     | Bytecode::Ge
                     | Bytecode::Gt
                     | Bytecode::Neq
-                    | Bytecode::Eq => match Self::bin_ops(stack) {
+                    | Bytecode::Eq => match Self::bin_ops(&self.trace_state.operand_stack) {
                         Ok((lhs, rhs)) => {
                             if let Some(current_function) = self.current_functions.first() {
                                 let op = CmpOp::try_from(instruction)?;
@@ -278,7 +264,7 @@ where
                             }
                         }
                     },
-                    Bytecode::Shl => match Self::bin_ops(stack) {
+                    Bytecode::Shl => match Self::bin_ops(&self.trace_state.operand_stack) {
                         Ok((lhs, rhs)) => {
                             if let Some(current_function) = self.current_functions.first() {
                                 self.outcome
@@ -307,8 +293,8 @@ where
                     | Bytecode::CastU32
                     | Bytecode::CastU64
                     | Bytecode::CastU128 => {
-                        if let Some(Some(lhs)) = stack.map(|s| s.value.last()) {
-                            let lhs: Magic = lhs.copy_value()?.value_as::<IntegerValue>()?.into();
+                        if let Some(lhs) = self.trace_state.operand_stack.last() {
+                            let lhs: Magic = Magic::try_from(lhs)?;
                             if let Some(current_function) = self.current_functions.first() {
                                 self.outcome
                                     .logs
@@ -348,10 +334,11 @@ where
     fn notify(
         &mut self,
         event: &TraceEvent,
-        _writer: &mut move_trace_format::interface::Writer<'_>,
-        stack: Option<&move_vm_stack::Stack>,
+        writer: &mut Writer<'_>,
+        _stack: Option<&move_vm_stack::Stack>,
     ) {
-        if let Err(e) = self.notify_event(event, stack) {
+        self.trace_state.notify(event, writer, None);
+        if let Err(e) = self.notify_event(event) {
             warn!("Error during tracing: {}", e);
         }
     }

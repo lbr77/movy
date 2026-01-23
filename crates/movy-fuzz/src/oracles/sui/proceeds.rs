@@ -4,8 +4,7 @@ use std::{
 };
 
 use log::debug;
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
+use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
 
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
 use movy_types::{
@@ -216,7 +215,7 @@ where
     fn event(
         &mut self,
         _event: &TraceEvent,
-        _stack: Option<&Stack>,
+        _trace_state: &TraceState,
         _symbol_stack: &ConcolicState,
         _current_function: Option<&movy_types::input::FunctionIdent>,
         _state: &mut S,

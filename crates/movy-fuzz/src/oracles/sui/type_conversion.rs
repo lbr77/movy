@@ -1,6 +1,5 @@
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
+use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
 use movy_types::input::MoveSequence;
 use movy_types::oracle::OracleFinding;
 use serde_json::json;
@@ -26,7 +25,7 @@ impl<T, S> SuiGeneralOracle<T, S> for TypeConversionOracle {
     fn event(
         &mut self,
         event: &TraceEvent,
-        stack: Option<&Stack>,
+        trace_state: &TraceState,
         _symbol_stack: &ConcolicState,
         current_function: Option<&movy_types::input::FunctionIdent>,
         _state: &mut S,
@@ -35,15 +34,11 @@ impl<T, S> SuiGeneralOracle<T, S> for TypeConversionOracle {
             TraceEvent::BeforeInstruction {
                 pc, instruction, ..
             } => {
-                let stack = match stack {
-                    Some(s) => s,
-                    None => return Ok(vec![]),
-                };
-                let Ok(vals_iter) = stack.last_n(1) else {
+                let stack = &trace_state.operand_stack;
+                if stack.len() < 1 {
                     return Ok(vec![]);
-                };
-                let vals: Vec<_> = vals_iter.collect();
-                let val = vals.first().unwrap();
+                }
+                let val = &stack[stack.len() - 1];
                 let unnecessary = match instruction {
                     Bytecode::CastU8 => value_bitwidth(val) == 8,
                     Bytecode::CastU16 => value_bitwidth(val) == 16,
