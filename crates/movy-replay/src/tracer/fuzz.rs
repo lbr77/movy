@@ -8,7 +8,6 @@ use move_binary_format::file_format::Bytecode;
 use move_trace_format::{
     format::{Effect, TraceEvent, TraceValue},
     interface::{Tracer, Writer},
-    memory_tracer::TraceState,
 };
 use movy_types::{error::MovyError, input::FunctionIdent, oracle::OracleFinding};
 
@@ -16,6 +15,7 @@ use crate::tracer::{
     concolic::ConcolicState,
     op::{CastLog, CmpLog, CmpOp, Log, Magic, ShlLog},
     oracle::SuiGeneralOracle,
+    trace::TraceState,
 };
 
 #[derive(Debug)]

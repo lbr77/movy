@@ -1,8 +1,9 @@
-use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
+use move_trace_format::{format::TraceEvent};
 use serde_json::json;
 
 use movy_replay::tracer::{
     concolic::{ConcolicState, SymbolValue},
+    trace::{TraceState},
     oracle::SuiGeneralOracle,
 };
 use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};

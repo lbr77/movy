@@ -5,8 +5,10 @@ use move_binary_format::file_format::Bytecode;
 use move_core_types::{language_storage::TypeTag, u256::U256};
 use move_trace_format::{
     format::{Effect, ExtraInstructionInformation, TraceEvent, TraceValue, TypeTagWithRefs},
-    memory_tracer::TraceState,
     value::SerializableMoveValue,
+};
+use crate::tracer::{
+    trace::TraceState
 };
 use z3::ast::{Ast, Bool, Int};
 

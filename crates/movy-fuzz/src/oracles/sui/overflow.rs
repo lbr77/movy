@@ -1,10 +1,11 @@
 use move_binary_format::file_format::Bytecode;
 use move_core_types::u256::U256;
-use move_trace_format::{format::{TraceEvent, TraceValue}, memory_tracer::TraceState};
+use move_trace_format::{format::{TraceEvent, TraceValue}};
 use serde_json::json;
 
 use movy_replay::tracer::{
     concolic::{ConcolicState, value_bitwidth, value_to_u256},
+    trace::{TraceState},
     oracle::SuiGeneralOracle,
 };
 use movy_types::{

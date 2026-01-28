@@ -4,9 +4,9 @@ use std::{
 };
 
 use log::debug;
-use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
+use move_trace_format::{format::TraceEvent};
 
-use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
+use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::{
     error::MovyError,
     input::{InputArgument, MoveSequence, SuiObjectInputArgument},

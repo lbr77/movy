@@ -1,7 +1,7 @@
 use log::{debug, trace};
-use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
+use move_trace_format::{format::TraceEvent};
 
-use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
+use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};
 use serde_json::json;
 use sui_types::{

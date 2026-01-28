@@ -1,11 +1,11 @@
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
+use move_trace_format::{format::TraceEvent};
 use movy_types::input::MoveSequence;
 use movy_types::oracle::OracleFinding;
 use serde_json::json;
 
 use movy_replay::tracer::concolic::value_bitwidth;
-use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
+use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle,trace::TraceState};
 use movy_types::error::MovyError;
 use sui_types::effects::TransactionEffects;
 

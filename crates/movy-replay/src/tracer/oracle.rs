@@ -1,4 +1,4 @@
-use move_trace_format::{format::TraceEvent, memory_tracer::TraceState};
+use move_trace_format::{format::TraceEvent};
 use movy_types::{
     error::MovyError,
     input::{FunctionIdent, MoveSequence},
@@ -6,7 +6,10 @@ use movy_types::{
 };
 use sui_types::effects::TransactionEffects;
 
-use crate::tracer::concolic::ConcolicState;
+use crate::tracer::{
+    concolic::ConcolicState,
+    trace::TraceState,
+};
 
 pub trait SuiGeneralOracle<T, S> {
     fn pre_execution(
