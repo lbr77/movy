@@ -285,30 +285,8 @@ impl ConcolicState {
             PrimitiveValue::U256(u) => Int::from_str(&u.to_string()).unwrap(),
         }
     }
-
-    pub fn notify_event(&mut self, event: &TraceEvent, trace_state: &TraceState) -> Option<Bool> {
-        if self.disable {
-            return None;
-        }
-        let stack = &trace_state.operand_stack;
-        if self.stack.len() != stack.len() && stack.is_empty() {
-            self.stack.clear();
-        }
-        if let TraceEvent::Effect(v) = event
-            && let Effect::ExecutionError(_) = v.as_ref()
-        {
-            self.stack.pop();
-        }
-        if self.stack.len() != stack.len() {
-            warn!(
-                "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution",
-                self.stack, stack, event
-            );
-            self.disable = true;
-            return None;
-        }
-
-        let mut process_binary_op = || {
+    #[inline]
+    fn process_binary_op(&mut self, stack: &[TraceValue]) -> Option<(Int, Int)> {
             let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
             let stack_len = stack.len();
             let true_lhs = &stack[stack_len - 2];
@@ -328,7 +306,22 @@ impl ConcolicState {
                 }
             };
             Some((new_l, new_r))
-        };
+    }
+    pub fn notify_event(&mut self, event: &TraceEvent, trace_state: &TraceState) -> Option<Bool> {
+        if self.disable {
+            return None;
+        }
+        let stack = &trace_state.operand_stack;
+        // if self.stack.len() != stack.len() && stack.is_empty() {
+        //     self.stack.clear();
+        // }
+        if let TraceEvent::Effect(v) = event
+            && let Effect::ExecutionError(_) = v.as_ref()
+        {
+            self.stack.pop();
+        }
+
+
 
         match event {
             TraceEvent::External(v) => {
@@ -404,6 +397,14 @@ impl ConcolicState {
                 instruction,
                 extra,
             } => {
+                if self.stack.len() != stack.len() {
+                        warn!(
+                            "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution",
+                            self.stack, stack, event
+                        );
+                        self.disable = true;
+                        return None;
+                    }
                 trace!(
                     "Before instruction at pc {}: {:?}, extra: {:?}. Current stack: {:?}",
                     pc,
@@ -481,7 +482,7 @@ impl ConcolicState {
                         }
                     }
                     Bytecode::Add => {
-                        if let Some((l, r)) = process_binary_op() {
+                        if let Some((l, r)) = self.process_binary_op(stack) {
                             // overflow check not implemented yet
                             let sum = l + r;
                             self.stack.push(SymbolValue::Value(sum));
@@ -490,7 +491,7 @@ impl ConcolicState {
                         }
                     }
                     Bytecode::Sub => {
-                        if let Some((l, r)) = process_binary_op() {
+                        if let Some((l, r)) = self.process_binary_op(stack) {
                             // overflow check not implemented yet
                             let diff = l - r;
                             self.stack.push(SymbolValue::Value(diff));
@@ -499,7 +500,7 @@ impl ConcolicState {
                         }
                     }
                     Bytecode::Mul => {
-                        if let Some((l, r)) = process_binary_op() {
+                        if let Some((l, r)) = self.process_binary_op(stack) {
                             // overflow check not implemented yet
                             let prod = l * r;
                             self.stack.push(SymbolValue::Value(prod));
@@ -508,7 +509,7 @@ impl ConcolicState {
                         }
                     }
                     Bytecode::Div => {
-                        if let Some((l, r)) = process_binary_op() {
+                        if let Some((l, r)) = self.process_binary_op(stack) {
                             // overflow check not implemented yet
                             let quot = l / r;
                             self.stack.push(SymbolValue::Value(quot));
@@ -517,7 +518,7 @@ impl ConcolicState {
                         }
                     }
                     Bytecode::Mod => {
-                        if let Some((l, r)) = process_binary_op() {
+                        if let Some((l, r)) = self.process_binary_op(stack) {
                             // overflow check not implemented yet
                             let rem = l % r;
                             self.stack.push(SymbolValue::Value(rem));

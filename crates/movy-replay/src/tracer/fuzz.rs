@@ -326,7 +326,8 @@ where
     }
 }
 
-impl<'a, 's, S, O, T, OT> Tracer for SuiFuzzTracer<'a, 's, S, O, T, OT>
+
+impl<'a, 's, S, O, T, OT> crate::event::TraceNotifier for SuiFuzzTracer<'a, 's, S, O, T, OT>
 where
     O: SuiGeneralOracle<T, S>,
     OT: MatchNameRef + MatchName,
@@ -338,8 +339,8 @@ where
         _stack: Option<&move_vm_stack::Stack>,
     ) {
         self.trace_state.notify(event, writer, None);
-        if let Err(e) = self.notify_event(event) {
-            warn!("Error during tracing: {}", e);
-        }
+    }
+    fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError> {
+        SuiFuzzTracer::notify_event(self, event)
     }
 }
