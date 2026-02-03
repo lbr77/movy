@@ -117,8 +117,16 @@ impl TraceState {
                     self.loaded_state.insert(*id, snapshot.clone());
                 }
             },
-            // External events are treated opaqeuly
-            TraceEvent::External(_) => (),
+            // External events are treated opaquely unless they define a trace boundary.
+            TraceEvent::External(external) => {
+                if external.as_str().is_some_and(|s| s == "MoveCallStart") {
+                    // New trace boundary. Reset reconstructed runtime state to avoid
+                    // leaking values across calls/txns.
+                    self.loaded_state.clear();
+                    self.operand_stack.clear();
+                    self.call_stack.clear();
+                }
+            }
             // Instructions
             TraceEvent::Instruction { .. } | TraceEvent::BeforeInstruction { .. } => (),
         }
@@ -150,4 +158,3 @@ impl Tracer for TraceState {
         // no emit for 
     }
 }
-
