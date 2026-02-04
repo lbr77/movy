@@ -1,4 +1,9 @@
-use std::{ops::Deref, str::FromStr, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    ops::Deref,
+    str::FromStr,
+    sync::Arc,
+};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
@@ -16,7 +21,7 @@ use sui_types::{
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     object::Owner,
-    storage::{BackingStore, ObjectStore, WriteKind},
+    storage::{BackingPackageStore, BackingStore, ObjectStore, WriteKind},
     supported_protocol_versions::{Chain, ProtocolConfig},
     transaction::{
         Argument, CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult,
@@ -59,7 +64,12 @@ impl<R> Deref for ExecutionTracedResults<R> {
 
 impl<T> SuiExecutor<T>
 where
-    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
+    T: ObjectStore
+        + BackingStore
+        + BackingPackageStore
+        + ObjectSuiStoreCommit
+        + ObjectStoreMintObject
+        + ObjectStoreInfo,
 {
     pub fn new(db: T) -> Result<Self, MovyError> {
         let protocol_config: ProtocolConfig =
@@ -214,7 +224,7 @@ where
     ) -> Result<ExecutionTracedResults<R>, MovyError> {
         let gas = self.db.get_move_object_info(gas.into())?.sui_reference();
         let tx_kind = TransactionKind::ProgrammableTransaction(ptb.clone());
-        let tx_data = TransactionData::new(tx_kind, sender, gas, 1_000_000_000, 1);
+        let tx_data = TransactionData::new(tx_kind, sender, gas, 100_000_000_000, 1);
 
         self.run_tx_trace(tx_data, epoch, epoch_ms, tracer)
     }
@@ -278,6 +288,96 @@ where
                 }
             }
         }
+        let mut canonical_by_original: BTreeMap<ObjectID, (ObjectID, u64)> = BTreeMap::new();
+        for dep in dependencies.iter() {
+            let mut original_id = *dep;
+            let mut upgraded_id = *dep;
+            let mut upgraded_version = 0u64;
+            if let Some(object) = self.db.get_object(dep) {
+                if let Some(pkg) = object.data.try_as_package() {
+                    original_id = pkg.original_package_id();
+                    if let Some(info) = pkg.linkage_table().get(&original_id) {
+                        upgraded_id = info.upgraded_id;
+                        upgraded_version = info.upgraded_version.value();
+                    } else {
+                        upgraded_version = object.version().value();
+                    }
+                } else {
+                    upgraded_version = object.version().value();
+                }
+            }
+            let entry = canonical_by_original
+                .entry(original_id)
+                .or_insert((upgraded_id, upgraded_version));
+            if upgraded_version > entry.1 {
+                *entry = (upgraded_id, upgraded_version);
+            }
+        }
+        let canonical_deps: Vec<ObjectID> =
+            canonical_by_original.values().map(|v| v.0).collect();
+        debug!(
+            "Publish deps list (normalized): {}",
+            canonical_deps.iter().map(|v| v.to_string()).join(", ")
+        );
+
+        let mut all_deps: BTreeSet<ObjectID> = dependencies.iter().copied().collect();
+        let mut queue: VecDeque<ObjectID> = dependencies.iter().copied().collect();
+        while let Some(dep) = queue.pop_front() {
+            let mut obj = self.db.get_object(&dep);
+            if obj.is_none() {
+                if let Ok(Some(pkg)) = self.db.get_package_object(&dep) {
+                    obj = Some(pkg.into());
+                }
+            }
+            let Some(object) = obj else { continue };
+            let Some(pkg) = object.data.try_as_package() else { continue };
+            for info in pkg.linkage_table().values() {
+                let id = info.upgraded_id;
+                if all_deps.insert(id) {
+                    queue.push_back(id);
+                }
+            }
+        }
+
+        let mut canonical_by_original: BTreeMap<ObjectID, (ObjectID, u64)> = BTreeMap::new();
+        for dep in all_deps.iter() {
+            let mut obj = self.db.get_object(dep);
+            if obj.is_none() {
+                if let Ok(Some(pkg)) = self.db.get_package_object(dep) {
+                    obj = Some(pkg.into());
+                }
+            }
+            if let Some(object) = obj {
+                if let Some(pkg) = object.data.try_as_package() {
+                    let original_id = pkg.original_package_id();
+                    let (upgraded_id, upgraded_version) =
+                        if let Some(info) = pkg.linkage_table().get(&original_id) {
+                            (info.upgraded_id, info.upgraded_version.value())
+                        } else {
+                            (*dep, object.version().value())
+                        };
+                    let entry = canonical_by_original
+                        .entry(original_id)
+                        .or_insert((upgraded_id, upgraded_version));
+                    if upgraded_version > entry.1 {
+                        *entry = (upgraded_id, upgraded_version);
+                    }
+                } else {
+                    canonical_by_original
+                        .entry(*dep)
+                        .or_insert((*dep, object.version().value()));
+                }
+            } else {
+                canonical_by_original.entry(*dep).or_insert((*dep, 0));
+            }
+        }
+        let canonical_deps: Vec<ObjectID> =
+            canonical_by_original.values().map(|v| v.0).collect();
+        debug!(
+            "Publish deps list (normalized): {}",
+            canonical_deps.iter().map(|v| v.to_string()).join(", ")
+        );
+
         let mut modules_bytes = vec![];
         for module in &modules {
             let mut buf = vec![];
@@ -288,7 +388,7 @@ where
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(bcs::to_bytes(&admin)?)],
             commands: vec![
-                Command::Publish(modules_bytes, dependencies.clone()), // This produces an upgrade cap
+                Command::Publish(modules_bytes, canonical_deps.clone()), // This produces an upgrade cap
                 Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(0)),
             ],
         };

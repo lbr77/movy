@@ -122,7 +122,8 @@ impl<
         let abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
         let mut non_test_abi = abi_result.abi()?;
         log::info!("Compiling {} with test mode...", path.display());
-        let compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        let mut compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        compiled_result.ensure_immediate_deps();
         let package_names = compiled_result.package_names.clone();
         let compiled_result = compiled_result.movy_mock()?;
         log::debug!(
