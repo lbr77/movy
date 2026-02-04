@@ -64,6 +64,18 @@ impl SuiCompiledPackage {
     pub fn abi(&self) -> Result<MovePackageAbi, MovyError> {
         MovePackageAbi::from_sui_id_and_modules(self.package_id, self.all_modules_iter())
     }
+    pub fn ensure_immediate_deps(&mut self) {
+        let mut deps: BTreeSet<ObjectID> = self.dependencies.iter().copied().collect();
+        for md in &self.modules {
+            for dep in md.immediate_dependencies() {
+                let id: ObjectID = (*dep.address()).into();
+                if id != self.package_id && id != ObjectID::ZERO {
+                    deps.insert(id);
+                }
+            }
+        }
+        self.dependencies = deps.into_iter().collect();
+    }
 }
 
 impl SuiCompiledPackage {
@@ -121,8 +133,7 @@ impl SuiCompiledPackage {
             published_dependencies: self.published_dependencies.clone(),
         };
 
-        let mut deps: BTreeSet<ObjectID> =
-            self.published_dependencies.clone().into_iter().collect();
+        let mut deps: BTreeSet<ObjectID> = self.dependencies.clone().into_iter().collect();
         for md in self.modules.iter() {
             let md = Self::mock_module(md);
             // deps.extend(
