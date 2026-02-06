@@ -16,11 +16,13 @@ use sui_types::{
     TypeTag,
     base_types::{ObjectID, SuiAddress},
     committee::ProtocolVersion,
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     gas::SuiGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    object::Owner,
+    move_package::MovePackage,
+    object::{Object, Owner},
     storage::{BackingPackageStore, BackingStore, ObjectStore, WriteKind},
     supported_protocol_versions::{Chain, ProtocolConfig},
     transaction::{
@@ -253,6 +255,22 @@ where
         self.run_ptb_with_gas(ptb, epoch, epoch_ms, sender, gas_ref.0, tracer)
     }
 
+    fn load_dependency_package(&self, dep: &ObjectID) -> Result<MovePackage, MovyError> {
+        let mut obj = self.db.get_object(dep);
+        if obj.is_none() {
+            if let Ok(Some(pkg)) = self.db.get_package_object(dep) {
+                obj = Some(pkg.into());
+            }
+        }
+        let Some(object) = obj else {
+            return Err(eyre!("package {} not found", dep).into());
+        };
+        let Some(pkg) = object.data.try_as_package() else {
+            return Err(eyre!("object {} is not a package", dep).into());
+        };
+        Ok(pkg.clone())
+    }
+
     pub fn deploy_contract(
         &mut self,
         epoch: u64,
@@ -421,5 +439,38 @@ where
         } else {
             Err(eyre!("fail to deploy").into())
         }
+    }
+
+    pub fn force_deploy_contract_at(
+        &mut self,
+        package_id: ObjectID,
+        project: SuiCompiledPackage,
+    ) -> Result<ObjectID, MovyError> {
+        log::info!("force publish package at {}", package_id);
+        let (modules, dependencies) = project.into_deployment();
+        let mut dep_packages = Vec::new();
+        for dep in dependencies.iter() {
+            if *dep == package_id {
+                continue;
+            }
+            dep_packages.push(self.load_dependency_package(dep)?);
+        }
+        let object = Object::new_package(
+            &modules,
+            TransactionDigest::genesis_marker(),
+            &self.protocol_config,
+            dep_packages.iter(),
+        )?;
+        if object.id() != package_id {
+            return Err(eyre!(
+                "forced publish id mismatch: expected {}, got {}",
+                package_id,
+                object.id()
+            )
+            .into());
+        }
+        log::info!("force publish success at {}", package_id);
+        self.db.commit_single_object(object)?;
+        Ok(package_id)
     }
 }
