@@ -306,47 +306,18 @@ where
                 }
             }
         }
-        let mut canonical_by_original: BTreeMap<ObjectID, (ObjectID, u64)> = BTreeMap::new();
-        for dep in dependencies.iter() {
-            let mut original_id = *dep;
-            let mut upgraded_id = *dep;
-            let mut upgraded_version = 0u64;
-            if let Some(object) = self.db.get_object(dep) {
-                if let Some(pkg) = object.data.try_as_package() {
-                    original_id = pkg.original_package_id();
-                    if let Some(info) = pkg.linkage_table().get(&original_id) {
-                        upgraded_id = info.upgraded_id;
-                        upgraded_version = info.upgraded_version.value();
-                    } else {
-                        upgraded_version = object.version().value();
-                    }
-                } else {
-                    upgraded_version = object.version().value();
-                }
-            }
-            let entry = canonical_by_original
-                .entry(original_id)
-                .or_insert((upgraded_id, upgraded_version));
-            if upgraded_version > entry.1 {
-                *entry = (upgraded_id, upgraded_version);
-            }
-        }
-        let canonical_deps: Vec<ObjectID> = canonical_by_original.values().map(|v| v.0).collect();
-        debug!(
-            "Publish deps list (normalized): {}",
-            canonical_deps.iter().map(|v| v.to_string()).join(", ")
-        );
-
         let mut all_deps: BTreeSet<ObjectID> = dependencies.iter().copied().collect();
         let mut queue: VecDeque<ObjectID> = dependencies.iter().copied().collect();
         while let Some(dep) = queue.pop_front() {
-            let mut obj = self.db.get_object(&dep);
-            if obj.is_none() {
-                if let Ok(Some(pkg)) = self.db.get_package_object(&dep) {
-                    obj = Some(pkg.into());
-                }
-            }
-            let Some(object) = obj else { continue };
+            let Some(object) = self.db.get_object(&dep).or_else(|| {
+                self.db
+                    .get_package_object(&dep)
+                    .ok()
+                    .flatten()
+                    .map(Into::into)
+            }) else {
+                continue;
+            };
             let Some(pkg) = object.data.try_as_package() else {
                 continue;
             };
@@ -360,13 +331,13 @@ where
 
         let mut canonical_by_original: BTreeMap<ObjectID, (ObjectID, u64)> = BTreeMap::new();
         for dep in all_deps.iter() {
-            let mut obj = self.db.get_object(dep);
-            if obj.is_none() {
-                if let Ok(Some(pkg)) = self.db.get_package_object(dep) {
-                    obj = Some(pkg.into());
-                }
-            }
-            if let Some(object) = obj {
+            if let Some(object) = self.db.get_object(dep).or_else(|| {
+                self.db
+                    .get_package_object(dep)
+                    .ok()
+                    .flatten()
+                    .map(Into::into)
+            }) {
                 if let Some(pkg) = object.data.try_as_package() {
                     let original_id = pkg.original_package_id();
                     let (upgraded_id, upgraded_version) =
