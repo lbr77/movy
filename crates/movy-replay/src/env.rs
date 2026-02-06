@@ -118,6 +118,42 @@ impl<
         + BackingPackageStore,
 > SuiTestingEnv<T>
 {
+    fn package_exists(&self, id: &ObjectID) -> bool {
+        self.db.get_package_object(id).ok().flatten().is_some() || self.db.get_object(id).is_some()
+    }
+
+    fn package_object(&self, id: &ObjectID) -> Option<Object> {
+        self.db
+            .get_package_object(id)
+            .ok()
+            .flatten()
+            .map(|p| p.object().clone())
+            .or_else(|| self.db.get_object(id))
+    }
+
+    fn record_zero_address_modules(
+        module_addr_map: &mut BTreeMap<String, ObjectID>,
+        modules: &[CompiledModule],
+        mapped_addr: ObjectID,
+    ) -> Result<(), MovyError> {
+        for md in modules {
+            let name = md.name().to_string();
+            if let Some(prev) = module_addr_map.insert(name.clone(), mapped_addr)
+                && prev != mapped_addr
+            {
+                return Err(eyre!(
+                    "duplicate zero-address module name {} mapped to both {} and {}",
+                    name,
+                    prev,
+                    mapped_addr
+                )
+                .into());
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn new(db: T) -> Self {
         Self { db }
     }
@@ -193,7 +229,7 @@ impl<
                 "published-at detected: {}. Checking local store for existing package...",
                 expected_id
             );
-            if let Some(object) = self.db.get_object(&expected_id) {
+            if let Some(object) = self.package_object(&expected_id) {
                 log::info!(
                     "package {} exists in store, verifying modules...",
                     expected_id
@@ -284,14 +320,7 @@ impl<
                         let original_id = ObjectID::from(original);
                         let storage_id = ObjectID::from(ov.published_at);
 
-                        let exists = self
-                            .db
-                            .get_package_object(&storage_id)
-                            .ok()
-                            .flatten()
-                            .is_some()
-                            || self.db.get_object(&storage_id).is_some();
-                        if !exists {
+                        if !self.package_exists(&storage_id) {
                             return Err(eyre!(
                                 "--package-address {}:{} not found in store; add it to --onchains first",
                                 dep_name,
@@ -309,22 +338,11 @@ impl<
                         original_to_storage.insert(original_id, storage_id);
 
                         if dep_self_addr == ObjectID::ZERO {
-                            for md in modules.iter() {
-                                let name = md.name().to_string();
-                                if let Some(prev) =
-                                    zero_module_addr_map.insert(name.clone(), original_id)
-                                {
-                                    if prev != original_id {
-                                        return Err(eyre!(
-                                            "duplicate zero-address module name {} mapped to both {} and {}",
-                                            name,
-                                            prev,
-                                            original_id
-                                        )
-                                        .into());
-                                    }
-                                }
-                            }
+                            Self::record_zero_address_modules(
+                                &mut zero_module_addr_map,
+                                modules,
+                                original_id,
+                            )?;
                         }
                         continue;
                     }
@@ -354,9 +372,7 @@ impl<
                         if !ensured.insert(addr) {
                             continue;
                         }
-                        let exists = self.db.get_package_object(&addr).ok().flatten().is_some()
-                            || self.db.get_object(&addr).is_some();
-                        if exists {
+                        if self.package_exists(&addr) {
                             continue;
                         }
                         log::debug!(
@@ -449,7 +465,7 @@ impl<
                     let dep_pkg = dep_pkg.movy_mock()?;
 
                     let dep_address = if dep_self_addr != ObjectID::ZERO {
-                        if self.db.get_object(&dep_self_addr).is_some() {
+                        if self.package_exists(&dep_self_addr) {
                             dep_self_addr
                         } else {
                             match executor.force_deploy_contract_at(dep_self_addr, dep_pkg) {
@@ -493,27 +509,17 @@ impl<
                     );
 
                     if dep_self_addr == ObjectID::ZERO {
-                        for md in modules.iter() {
-                            let name = md.name().to_string();
-                            if let Some(prev) =
-                                zero_module_addr_map.insert(name.clone(), dep_address)
-                            {
-                                if prev != dep_address {
-                                    log::debug!(
-                                        "ERROR: duplicate zero-address module name {} mapped to both {} and {}",
-                                        name,
-                                        prev,
-                                        dep_address
-                                    );
-                                    return Err(eyre!(
-                                        "duplicate zero-address module name {} mapped to both {} and {}",
-                                        name,
-                                        prev,
-                                        dep_address
-                                    )
-                                    .into());
-                                }
-                            }
+                        if let Err(e) = Self::record_zero_address_modules(
+                            &mut zero_module_addr_map,
+                            modules,
+                            dep_address,
+                        ) {
+                            log::debug!(
+                                "ERROR: failed to record zero-address modules for {}: {:?}",
+                                dep_name,
+                                e
+                            );
+                            return Err(e);
                         }
                     }
                 }
@@ -538,9 +544,7 @@ impl<
             // Ensure every dependency package exists in the store before publishing root.
             // This catches the "address is set but package doesn't exist (yet)" case.
             for dep in compiled_result.dependencies().iter().copied() {
-                let exists = self.db.get_package_object(&dep).ok().flatten().is_some()
-                    || self.db.get_object(&dep).is_some();
-                if exists {
+                if self.package_exists(&dep) {
                     continue;
                 }
 
@@ -588,9 +592,7 @@ impl<
             let refs = external_module_refs(compiled_result.all_modules_iter().cloned());
             log::debug!("root external refs count={}", refs.len());
             for (addr, names) in refs.iter() {
-                let mapped_storage = if self.db.get_object(addr).is_none()
-                    && self.db.get_package_object(addr).ok().flatten().is_none()
-                {
+                let mapped_storage = if !self.package_exists(addr) {
                     original_to_storage.get(addr).copied()
                 } else {
                     None
@@ -612,13 +614,7 @@ impl<
                     );
                 }
                 // Best-effort: check package presence and required modules.
-                let pkg_obj = self
-                    .db
-                    .get_package_object(&check_addr)
-                    .ok()
-                    .flatten()
-                    .map(|p| p.object().clone())
-                    .or_else(|| self.db.get_object(&check_addr));
+                let pkg_obj = self.package_object(&check_addr);
                 if let Some(obj) = pkg_obj {
                     if let Some(pkg) = obj.data.try_as_package() {
                         for m in names {
