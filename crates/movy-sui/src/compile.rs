@@ -75,6 +75,20 @@ impl SuiCompiledPackage {
     pub fn dependencies(&self) -> &[ObjectID] {
         &self.dependencies
     }
+    pub fn rewrite_dependency_storage_ids(&mut self, id_map: &BTreeMap<ObjectID, ObjectID>) {
+        if id_map.is_empty() {
+            return;
+        }
+        let mut out: BTreeSet<ObjectID> = BTreeSet::new();
+        for dep in self.dependencies.iter().copied() {
+            if let Some(mapped) = id_map.get(&dep) {
+                out.insert(*mapped);
+            } else {
+                out.insert(dep);
+            }
+        }
+        self.dependencies = out.into_iter().collect();
+    }
     pub fn unpublished_dep_order(&self) -> &[String] {
         &self.unpublished_dep_order
     }

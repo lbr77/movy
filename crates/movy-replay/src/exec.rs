@@ -331,8 +331,7 @@ where
                 *entry = (upgraded_id, upgraded_version);
             }
         }
-        let canonical_deps: Vec<ObjectID> =
-            canonical_by_original.values().map(|v| v.0).collect();
+        let canonical_deps: Vec<ObjectID> = canonical_by_original.values().map(|v| v.0).collect();
         debug!(
             "Publish deps list (normalized): {}",
             canonical_deps.iter().map(|v| v.to_string()).join(", ")
@@ -348,7 +347,9 @@ where
                 }
             }
             let Some(object) = obj else { continue };
-            let Some(pkg) = object.data.try_as_package() else { continue };
+            let Some(pkg) = object.data.try_as_package() else {
+                continue;
+            };
             for info in pkg.linkage_table().values() {
                 let id = info.upgraded_id;
                 if all_deps.insert(id) {
@@ -389,8 +390,7 @@ where
                 canonical_by_original.entry(*dep).or_insert((*dep, 0));
             }
         }
-        let canonical_deps: Vec<ObjectID> =
-            canonical_by_original.values().map(|v| v.0).collect();
+        let canonical_deps: Vec<ObjectID> = canonical_by_original.values().map(|v| v.0).collect();
         debug!(
             "Publish deps list (normalized): {}",
             canonical_deps.iter().map(|v| v.to_string()).join(", ")

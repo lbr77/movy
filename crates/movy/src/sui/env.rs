@@ -6,7 +6,7 @@ use itertools::Itertools;
 use movy_fuzz::meta::FuzzFunctionScore;
 use movy_replay::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
-    env::SuiTestingEnv,
+    env::{PackageAddressOverride, SuiTestingEnv},
 };
 use movy_sui::{
     compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit, rpc::graphql::GraphQlClient,
@@ -38,6 +38,12 @@ pub struct SuiTargetArgs {
     pub objects: Option<Vec<MoveAddress>>,
     #[arg(short, long, help = "Local packages to build.")]
     pub locals: Option<Vec<PathBuf>>,
+    #[arg(
+        long,
+        value_delimiter = ',',
+        help = "Override package address mapping. Form: Name:0xPUBLISHED_AT or Name:0xORIGINAL@0xPUBLISHED_AT. Example: --package-address governance:0x03..@0x92.."
+    )]
+    pub package_address: Option<Vec<PackageAddressOverrideArg>>,
 }
 
 impl SuiTargetArgs {
@@ -78,6 +84,27 @@ impl SuiTargetArgs {
     {
         let mut target_packages = Vec::new();
         let mut local_name_map = BTreeMap::new();
+        let mut package_address_overrides: BTreeMap<String, PackageAddressOverride> =
+            BTreeMap::new();
+        for ov in self.package_address.iter().flatten() {
+            if package_address_overrides
+                .insert(
+                    ov.package.clone(),
+                    PackageAddressOverride {
+                        original: ov.original,
+                        published_at: ov.published_at,
+                    },
+                )
+                .is_some()
+            {
+                log::warn!("Duplicate --package-address for {}", ov.package);
+            }
+        }
+        let package_address_overrides = if package_address_overrides.is_empty() {
+            None
+        } else {
+            Some(package_address_overrides)
+        };
         for onchain in self.onchains.iter().flatten() {
             log::info!("Deploying onchain address {} to env...", onchain);
             env.deploy_address(*onchain).await?;
@@ -96,8 +123,17 @@ impl SuiTargetArgs {
         let mut local_abis = vec![];
         for local in self.locals.iter().flatten() {
             log::info!("Deploying the local package at {}", local.display());
+            let overrides_ref = package_address_overrides.as_ref();
             let (target_package, testing_abi, abi, package_names) = env
-                .load_local(local, deployer, attacker, epoch, epoch_ms, gas.into())
+                .load_local(
+                    local,
+                    deployer,
+                    attacker,
+                    epoch,
+                    epoch_ms,
+                    gas.into(),
+                    overrides_ref,
+                )
                 .await?;
             for name in package_names.iter() {
                 local_name_map.insert(name.clone(), target_package);
@@ -110,6 +146,53 @@ impl SuiTargetArgs {
         env.load_inner_types().await?;
 
         Ok((target_packages, local_abis, local_name_map))
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PackageAddressOverrideArg {
+    pub package: String,
+    pub original: Option<MoveAddress>,
+    pub published_at: MoveAddress,
+}
+
+impl std::str::FromStr for PackageAddressOverrideArg {
+    type Err = MovyError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (pkg, rest) = s.split_once(':').ok_or_else(|| {
+            MovyError::InvalidIdentifier(format!("Invalid package address: {}", s))
+        })?;
+        let package = pkg.trim();
+        if package.is_empty() {
+            return Err(MovyError::InvalidIdentifier(format!(
+                "Invalid package address: {}",
+                s
+            )));
+        }
+
+        let rest = rest.trim();
+        if let Some((orig, published)) = rest.split_once('@').or_else(|| rest.split_once('=')) {
+            let original = MoveAddress::from_str(orig.trim()).map_err(|_| {
+                MovyError::InvalidIdentifier(format!("Invalid package address: {}", s))
+            })?;
+            let published_at = MoveAddress::from_str(published.trim()).map_err(|_| {
+                MovyError::InvalidIdentifier(format!("Invalid package address: {}", s))
+            })?;
+            Ok(Self {
+                package: package.to_string(),
+                original: Some(original),
+                published_at,
+            })
+        } else {
+            let published_at = MoveAddress::from_str(rest).map_err(|_| {
+                MovyError::InvalidIdentifier(format!("Invalid package address: {}", s))
+            })?;
+            Ok(Self {
+                package: package.to_string(),
+                original: None,
+                published_at,
+            })
+        }
     }
 }
 

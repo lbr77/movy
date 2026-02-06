@@ -39,7 +39,14 @@ pub struct SuiTestingEnv<T> {
     db: T,
 }
 
-
+#[derive(Clone, Debug)]
+pub struct PackageAddressOverride {
+    /// The address used in type tags / module IDs (the "original package id" in Sui upgrade terms).
+    /// If unset, `published_at` is used for both roles.
+    pub original: Option<MoveAddress>,
+    /// The storage package object ID (the "published-at" / upgraded package id).
+    pub published_at: MoveAddress,
+}
 
 fn external_module_refs(
     modules: impl Iterator<Item = CompiledModule>,
@@ -170,6 +177,7 @@ impl<
         epoch: u64,
         epoch_ms: u64,
         gas: ObjectID,
+        package_address_overrides: Option<&BTreeMap<String, PackageAddressOverride>>,
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
         log::info!("Compiling {} with non-test mode...", path.display());
         let mut abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
@@ -238,6 +246,7 @@ impl<
                     .collect::<Vec<_>>()
                     .join(",")
             );
+            let mut original_to_storage: BTreeMap<ObjectID, ObjectID> = BTreeMap::new();
             let mut zero_module_addr_map: BTreeMap<String, ObjectID> = BTreeMap::new();
             if !compiled_result.unpublished_dep_order().is_empty() {
                 // Best-effort: ensure any dependency packages referenced by a dep publish exist in the store.
@@ -269,13 +278,65 @@ impl<
                     }
 
                     let dep_self_addr = ObjectID::from(*modules[0].address());
+
+                    if let Some(ov) = package_address_overrides.and_then(|m| m.get(dep_name)) {
+                        let original = ov.original.unwrap_or(ov.published_at);
+                        let original_id = ObjectID::from(original);
+                        let storage_id = ObjectID::from(ov.published_at);
+
+                        let exists = self
+                            .db
+                            .get_package_object(&storage_id)
+                            .ok()
+                            .flatten()
+                            .is_some()
+                            || self.db.get_object(&storage_id).is_some();
+                        if !exists {
+                            return Err(eyre!(
+                                "--package-address {}:{} not found in store; add it to --onchains first",
+                                dep_name,
+                                storage_id
+                            )
+                            .into());
+                        }
+
+                        log::info!(
+                            "Using package {} original={} published-at={} (--package-address)",
+                            dep_name,
+                            original_id,
+                            storage_id
+                        );
+                        original_to_storage.insert(original_id, storage_id);
+
+                        if dep_self_addr == ObjectID::ZERO {
+                            for md in modules.iter() {
+                                let name = md.name().to_string();
+                                if let Some(prev) =
+                                    zero_module_addr_map.insert(name.clone(), original_id)
+                                {
+                                    if prev != original_id {
+                                        return Err(eyre!(
+                                            "duplicate zero-address module name {} mapped to both {} and {}",
+                                            name,
+                                            prev,
+                                            original_id
+                                        )
+                                        .into());
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
                     let mut dep_pkg =
                         SuiCompiledPackage::new_unpublished(dep_name.clone(), modules.clone());
                     if dep_self_addr == ObjectID::ZERO && !zero_module_addr_map.is_empty() {
                         if let Err(e) = dep_pkg.rewrite_deps_by_module_name(&zero_module_addr_map) {
                             log::debug!(
                                 "ERROR: rewrite deps by module name failed for dep {}: {:?}",
-                                dep_name, e
+                                dep_name,
+                                e
                             );
                             return Err(e);
                         }
@@ -300,14 +361,16 @@ impl<
                         }
                         log::debug!(
                             "dep {} missing in store (required by {}); trying force publish from compiled deps...",
-                            addr, dep_name
+                            addr,
+                            dep_name
                         );
 
                         let Some(candidates) = compiled_result.dep_modules_by_addr().get(&addr)
                         else {
                             log::debug!(
                                 "no compiled dep modules recorded for addr {} (required by {})",
-                                addr, dep_name
+                                addr,
+                                dep_name
                             );
                             continue;
                         };
@@ -324,7 +387,9 @@ impl<
                         if cand_modules.is_empty() {
                             log::debug!(
                                 "dep candidate {} for addr {} has 0 modules (required by {})",
-                                cand_name, addr, dep_name
+                                cand_name,
+                                addr,
+                                dep_name
                             );
                             continue;
                         }
@@ -341,7 +406,9 @@ impl<
                             {
                                 log::debug!(
                                     "ERROR: rewrite deps by module name failed for candidate {} at {}: {:?}",
-                                    cand_name, addr, e
+                                    cand_name,
+                                    addr,
+                                    e
                                 );
                                 return Err(e);
                             }
@@ -355,7 +422,9 @@ impl<
                             Err(e) => {
                                 log::debug!(
                                     "ERROR: movy_mock failed for candidate {} at {}: {:?}",
-                                    cand_name, addr, e
+                                    cand_name,
+                                    addr,
+                                    e
                                 );
                                 return Err(e);
                             }
@@ -363,13 +432,17 @@ impl<
                         if let Err(e) = executor.force_deploy_contract_at(addr, cand_pkg) {
                             log::debug!(
                                 "ERROR: force publish candidate {} at {} failed: {:?}",
-                                cand_name, addr, e
+                                cand_name,
+                                addr,
+                                e
                             );
                             return Err(e);
                         }
                         log::debug!(
                             "forced publish dep {} from package {} (required by {})",
-                            addr, cand_name, dep_name
+                            addr,
+                            cand_name,
+                            dep_name
                         );
                     }
 
@@ -384,7 +457,9 @@ impl<
                                 Err(e) => {
                                     log::debug!(
                                         "ERROR: force publish dep {} at {} failed: {:?}",
-                                        dep_name, dep_self_addr, e
+                                        dep_name,
+                                        dep_self_addr,
+                                        e
                                     );
                                     return Err(e);
                                 }
@@ -402,7 +477,8 @@ impl<
                             Err(e) => {
                                 log::debug!(
                                     "ERROR: deploy dep {} (self=0x0) failed: {:?}",
-                                    dep_name, e
+                                    dep_name,
+                                    e
                                 );
                                 return Err(e);
                             }
@@ -411,7 +487,9 @@ impl<
 
                     log::debug!(
                         "dep publish {}: self={} -> published={}",
-                        dep_name, dep_self_addr, dep_address
+                        dep_name,
+                        dep_self_addr,
+                        dep_address
                     );
 
                     if dep_self_addr == ObjectID::ZERO {
@@ -423,7 +501,9 @@ impl<
                                 if prev != dep_address {
                                     log::debug!(
                                         "ERROR: duplicate zero-address module name {} mapped to both {} and {}",
-                                        name, prev, dep_address
+                                        name,
+                                        prev,
+                                        dep_address
                                     );
                                     return Err(eyre!(
                                         "duplicate zero-address module name {} mapped to both {} and {}",
@@ -453,6 +533,7 @@ impl<
             }
 
             compiled_result.ensure_immediate_deps();
+            compiled_result.rewrite_dependency_storage_ids(&original_to_storage);
 
             // Ensure every dependency package exists in the store before publishing root.
             // This catches the "address is set but package doesn't exist (yet)" case.
@@ -469,10 +550,7 @@ impl<
                 );
 
                 let Some(candidates) = compiled_result.dep_modules_by_addr().get(&dep) else {
-                    log::debug!(
-                        "no compiled dep modules recorded for addr {}",
-                        dep
-                    );
+                    log::debug!("no compiled dep modules recorded for addr {}", dep);
                     continue;
                 };
                 if candidates.len() != 1 {
@@ -485,10 +563,7 @@ impl<
                 }
                 let (dep_name, modules) = candidates.iter().next().unwrap();
                 if modules.is_empty() {
-                    log::debug!(
-                        "dep candidate {} for addr {} has 0 modules",
-                        dep_name, dep
-                    );
+                    log::debug!("dep candidate {} for addr {} has 0 modules", dep_name, dep);
                     continue;
                 }
 
@@ -504,7 +579,8 @@ impl<
                 executor.force_deploy_contract_at(dep, dep_pkg)?;
                 log::debug!(
                     "forced publish missing dep {} from package {}",
-                    dep, dep_name
+                    dep,
+                    dep_name
                 );
             }
 
@@ -512,19 +588,37 @@ impl<
             let refs = external_module_refs(compiled_result.all_modules_iter().cloned());
             log::debug!("root external refs count={}", refs.len());
             for (addr, names) in refs.iter() {
-                log::debug!(
-                    "ref addr={} modules={}",
-                    addr,
-                    names.iter().cloned().collect::<Vec<_>>().join(",")
-                );
+                let mapped_storage = if self.db.get_object(addr).is_none()
+                    && self.db.get_package_object(addr).ok().flatten().is_none()
+                {
+                    original_to_storage.get(addr).copied()
+                } else {
+                    None
+                };
+                let check_addr = mapped_storage.unwrap_or(*addr);
+
+                if let Some(storage) = mapped_storage {
+                    log::debug!(
+                        "ref addr={} (mapped to storage {}) modules={}",
+                        addr,
+                        storage,
+                        names.iter().cloned().collect::<Vec<_>>().join(",")
+                    );
+                } else {
+                    log::debug!(
+                        "ref addr={} modules={}",
+                        addr,
+                        names.iter().cloned().collect::<Vec<_>>().join(",")
+                    );
+                }
                 // Best-effort: check package presence and required modules.
                 let pkg_obj = self
                     .db
-                    .get_package_object(addr)
+                    .get_package_object(&check_addr)
                     .ok()
                     .flatten()
                     .map(|p| p.object().clone())
-                    .or_else(|| self.db.get_object(addr));
+                    .or_else(|| self.db.get_object(&check_addr));
                 if let Some(obj) = pkg_obj {
                     if let Some(pkg) = obj.data.try_as_package() {
                         for m in names {
@@ -532,16 +626,16 @@ impl<
                                 log::debug!(
                                     "missing module {} in package {} (version={})",
                                     m,
-                                    addr,
+                                    check_addr,
                                     obj.version().value()
                                 );
                             }
                         }
                     } else {
-                        log::debug!("dep {} exists but not a package", addr);
+                        log::debug!("dep {} exists but not a package", check_addr);
                     }
                 } else {
-                    log::debug!("dep package {} not found in store", addr);
+                    log::debug!("dep package {} not found in store", check_addr);
                 }
             }
             log::debug!(
