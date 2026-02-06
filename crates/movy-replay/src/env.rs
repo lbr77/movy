@@ -96,6 +96,28 @@ fn package_modules_match(
     Ok(&compiled_map == pkg.serialized_module_map())
 }
 
+fn insert_zero_module_mapping(
+    zero_module_addr_map: &mut BTreeMap<String, ObjectID>,
+    modules: &[CompiledModule],
+    target_addr: ObjectID,
+) -> Result<(), MovyError> {
+    for module in modules {
+        let name = module.name().to_string();
+        if let Some(prev) = zero_module_addr_map.insert(name.clone(), target_addr)
+            && prev != target_addr
+        {
+            return Err(eyre!(
+                "duplicate zero-address module name {} mapped to both {} and {}",
+                name,
+                prev,
+                target_addr
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 impl<T> SuiTestingEnv<T> {
     pub fn inner(&self) -> &T {
         &self.db
@@ -120,6 +142,10 @@ impl<
 {
     pub fn new(db: T) -> Self {
         Self { db }
+    }
+
+    fn package_exists(&self, id: &ObjectID) -> bool {
+        self.db.get_package_object(id).ok().flatten().is_some() || self.db.get_object(id).is_some()
     }
 
     pub fn install_std(&self, test: bool) -> Result<(), MovyError> {
@@ -284,14 +310,7 @@ impl<
                         let original_id = ObjectID::from(original);
                         let storage_id = ObjectID::from(ov.published_at);
 
-                        let exists = self
-                            .db
-                            .get_package_object(&storage_id)
-                            .ok()
-                            .flatten()
-                            .is_some()
-                            || self.db.get_object(&storage_id).is_some();
-                        if !exists {
+                        if !self.package_exists(&storage_id) {
                             return Err(eyre!(
                                 "--package-address {}:{} not found in store; add it to --onchains first",
                                 dep_name,
@@ -309,22 +328,11 @@ impl<
                         original_to_storage.insert(original_id, storage_id);
 
                         if dep_self_addr == ObjectID::ZERO {
-                            for md in modules.iter() {
-                                let name = md.name().to_string();
-                                if let Some(prev) =
-                                    zero_module_addr_map.insert(name.clone(), original_id)
-                                {
-                                    if prev != original_id {
-                                        return Err(eyre!(
-                                            "duplicate zero-address module name {} mapped to both {} and {}",
-                                            name,
-                                            prev,
-                                            original_id
-                                        )
-                                        .into());
-                                    }
-                                }
-                            }
+                            insert_zero_module_mapping(
+                                &mut zero_module_addr_map,
+                                modules,
+                                original_id,
+                            )?;
                         }
                         continue;
                     }
@@ -354,9 +362,7 @@ impl<
                         if !ensured.insert(addr) {
                             continue;
                         }
-                        let exists = self.db.get_package_object(&addr).ok().flatten().is_some()
-                            || self.db.get_object(&addr).is_some();
-                        if exists {
+                        if self.package_exists(&addr) {
                             continue;
                         }
                         log::debug!(
@@ -449,7 +455,7 @@ impl<
                     let dep_pkg = dep_pkg.movy_mock()?;
 
                     let dep_address = if dep_self_addr != ObjectID::ZERO {
-                        if self.db.get_object(&dep_self_addr).is_some() {
+                        if self.package_exists(&dep_self_addr) {
                             dep_self_addr
                         } else {
                             match executor.force_deploy_contract_at(dep_self_addr, dep_pkg) {
@@ -492,29 +498,19 @@ impl<
                         dep_address
                     );
 
-                    if dep_self_addr == ObjectID::ZERO {
-                        for md in modules.iter() {
-                            let name = md.name().to_string();
-                            if let Some(prev) =
-                                zero_module_addr_map.insert(name.clone(), dep_address)
-                            {
-                                if prev != dep_address {
-                                    log::debug!(
-                                        "ERROR: duplicate zero-address module name {} mapped to both {} and {}",
-                                        name,
-                                        prev,
-                                        dep_address
-                                    );
-                                    return Err(eyre!(
-                                        "duplicate zero-address module name {} mapped to both {} and {}",
-                                        name,
-                                        prev,
-                                        dep_address
-                                    )
-                                    .into());
-                                }
-                            }
-                        }
+                    if dep_self_addr == ObjectID::ZERO
+                        && let Err(e) = insert_zero_module_mapping(
+                            &mut zero_module_addr_map,
+                            modules,
+                            dep_address,
+                        )
+                    {
+                        log::debug!(
+                            "ERROR: rewrite zero-address module map failed for dep {}: {:?}",
+                            dep_name,
+                            e
+                        );
+                        return Err(e);
                     }
                 }
 
@@ -538,9 +534,7 @@ impl<
             // Ensure every dependency package exists in the store before publishing root.
             // This catches the "address is set but package doesn't exist (yet)" case.
             for dep in compiled_result.dependencies().iter().copied() {
-                let exists = self.db.get_package_object(&dep).ok().flatten().is_some()
-                    || self.db.get_object(&dep).is_some();
-                if exists {
+                if self.package_exists(&dep) {
                     continue;
                 }
 
@@ -588,9 +582,7 @@ impl<
             let refs = external_module_refs(compiled_result.all_modules_iter().cloned());
             log::debug!("root external refs count={}", refs.len());
             for (addr, names) in refs.iter() {
-                let mapped_storage = if self.db.get_object(addr).is_none()
-                    && self.db.get_package_object(addr).ok().flatten().is_none()
-                {
+                let mapped_storage = if !self.package_exists(addr) {
                     original_to_storage.get(addr).copied()
                 } else {
                     None
