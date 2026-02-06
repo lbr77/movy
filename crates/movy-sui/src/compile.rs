@@ -89,6 +89,16 @@ impl SuiCompiledPackage {
         }
         self.dependencies = out.into_iter().collect();
     }
+
+    /// Force the runtime address (i.e. module self address) for every module in this package.
+    /// This is needed when simulating upgraded packages, where the storage ID can differ from the
+    /// runtime/original ID embedded in module bytes.
+    pub fn set_self_address(&mut self, new_addr: ObjectID) -> Result<(), MovyError> {
+        for module in self.modules.iter_mut() {
+            set_module_self_address(module, new_addr)?;
+        }
+        Ok(())
+    }
     pub fn unpublished_dep_order(&self) -> &[String] {
         &self.unpublished_dep_order
     }
@@ -423,6 +433,48 @@ fn rewrite_module_by_name(
         };
         module.module_handles[idx].address = addr_idx;
     }
+    Ok(())
+}
+
+fn set_module_self_address(
+    module: &mut CompiledModule,
+    new_addr: ObjectID,
+) -> Result<(), MovyError> {
+    let new_addr = AccountAddress::from(new_addr);
+    let self_handle_idx = module.self_handle_idx();
+    let self_handle_pos = self_handle_idx.0 as usize;
+    let current_idx = module.module_handles[self_handle_pos].address;
+    let current_addr = *module.address_identifier_at(current_idx);
+
+    if current_addr != AccountAddress::ZERO && current_addr != new_addr {
+        return Err(eyre!(
+            "cannot rewrite module {} self address from {} to {}",
+            module.name(),
+            current_addr,
+            new_addr
+        )
+        .into());
+    }
+
+    log::debug!(
+        "set self address: module={} {} -> {}",
+        module.name(),
+        current_addr,
+        new_addr
+    );
+
+    // Ensure the new address exists in the address table.
+    let mut addr_index_map: BTreeMap<AccountAddress, AddressIdentifierIndex> = BTreeMap::new();
+    for (idx, addr) in module.address_identifiers.iter().enumerate() {
+        addr_index_map.insert(*addr, AddressIdentifierIndex(idx as u16));
+    }
+    let new_idx = if let Some(idx) = addr_index_map.get(&new_addr) {
+        *idx
+    } else {
+        module.address_identifiers.push(new_addr);
+        AddressIdentifierIndex((module.address_identifiers.len() - 1) as u16)
+    };
+    module.module_handles[self_handle_pos].address = new_idx;
     Ok(())
 }
 

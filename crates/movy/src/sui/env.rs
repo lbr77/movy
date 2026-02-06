@@ -44,6 +44,12 @@ pub struct SuiTargetArgs {
         help = "Override package address mapping. Form: Name:0xPUBLISHED_AT or Name:0xORIGINAL@0xPUBLISHED_AT. Example: --package-address governance:0x03..@0x92.."
     )]
     pub package_address: Option<Vec<PackageAddressOverrideArg>>,
+    #[arg(
+        long,
+        value_delimiter = ',',
+        help = "Force redeploy test build for these packages even when --package-address is provided (sources must be part of the local build graph). Example: --redeploy-test governance"
+    )]
+    pub redeploy_test: Option<Vec<String>>,
 }
 
 impl SuiTargetArgs {
@@ -105,6 +111,44 @@ impl SuiTargetArgs {
         } else {
             Some(package_address_overrides)
         };
+        if let Some(overrides) = &package_address_overrides {
+            log::debug!(
+                "package address overrides: {}",
+                overrides
+                    .iter()
+                    .map(|(name, ov)| {
+                        let orig = ov
+                            .original
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "<auto>".to_string());
+                        format!(
+                            "{}: original={} published-at={}",
+                            name, orig, ov.published_at
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        let redeploy_test: std::collections::BTreeSet<String> = self
+            .redeploy_test
+            .iter()
+            .flatten()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let redeploy_test = if redeploy_test.is_empty() {
+            None
+        } else {
+            Some(redeploy_test)
+        };
+        if let Some(pkgs) = &redeploy_test {
+            log::debug!(
+                "redeploy test packages: {}",
+                pkgs.iter().cloned().collect::<Vec<_>>().join(", ")
+            );
+        }
+
         for onchain in self.onchains.iter().flatten() {
             log::info!("Deploying onchain address {} to env...", onchain);
             env.deploy_address(*onchain).await?;
@@ -117,6 +161,12 @@ impl SuiTargetArgs {
             env.load_history(*hist, checkpoint, rpc).await?;
         }
 
+        for obj in self.objects.iter().flatten() {
+            log::info!("Loading additional object {}...", obj);
+            // TODO: should wrap one level.
+            env.inner().load_object(*obj).await?;
+        }
+
         log::info!("Loading inner types...");
         env.load_inner_types().await?;
 
@@ -124,6 +174,7 @@ impl SuiTargetArgs {
         for local in self.locals.iter().flatten() {
             log::info!("Deploying the local package at {}", local.display());
             let overrides_ref = package_address_overrides.as_ref();
+            let redeploy_ref = redeploy_test.as_ref();
             let (target_package, testing_abi, abi, package_names) = env
                 .load_local(
                     local,
@@ -133,6 +184,7 @@ impl SuiTargetArgs {
                     epoch_ms,
                     gas.into(),
                     overrides_ref,
+                    redeploy_ref,
                 )
                 .await?;
             for name in package_names.iter() {

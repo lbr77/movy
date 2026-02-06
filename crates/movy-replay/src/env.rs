@@ -96,6 +96,37 @@ fn package_modules_match(
     Ok(&compiled_map == pkg.serialized_module_map())
 }
 
+fn record_zero_address_modules(
+    module_addr_map: &mut BTreeMap<String, ObjectID>,
+    modules: &[CompiledModule],
+    package_addr: ObjectID,
+) -> Result<(), MovyError> {
+    log::debug!(
+        "record zero-address modules: addr={} modules={}",
+        package_addr,
+        modules
+            .iter()
+            .map(|m| m.name().to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    for module in modules.iter() {
+        let name = module.name().to_string();
+        if let Some(prev) = module_addr_map.insert(name.clone(), package_addr)
+            && prev != package_addr
+        {
+            return Err(eyre!(
+                "duplicate zero-address module name {} mapped to both {} and {}",
+                name,
+                prev,
+                package_addr
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 impl<T> SuiTestingEnv<T> {
     pub fn inner(&self) -> &T {
         &self.db
@@ -178,6 +209,7 @@ impl<
         epoch_ms: u64,
         gas: ObjectID,
         package_address_overrides: Option<&BTreeMap<String, PackageAddressOverride>>,
+        redeploy_test_packages: Option<&BTreeSet<String>>,
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
         log::info!("Compiling {} with non-test mode...", path.display());
         let mut abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
@@ -186,6 +218,39 @@ impl<
             SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
         compiled_result.ensure_immediate_deps();
         let package_names = compiled_result.package_names.clone();
+        log::debug!(
+            "load_local root package_name={} expected_published_at={} package_names={}",
+            abi_result.package_name,
+            abi_result.package_id,
+            package_names.join(",")
+        );
+        if let Some(overrides) = package_address_overrides {
+            log::debug!(
+                "load_local has package_address_overrides: {}",
+                overrides
+                    .iter()
+                    .map(|(name, ov)| {
+                        let orig = ov
+                            .original
+                            .map(|v| ObjectID::from(v).to_string())
+                            .unwrap_or_else(|| "<auto>".to_string());
+                        format!(
+                            "{}: original={} storage={}",
+                            name,
+                            orig,
+                            ObjectID::from(ov.published_at)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        if let Some(pkgs) = redeploy_test_packages {
+            log::debug!(
+                "load_local redeploy_test_packages: {}",
+                pkgs.iter().cloned().collect::<Vec<_>>().join(",")
+            );
+        }
         let mut executor = SuiExecutor::new(&self.db)?;
         let expected_id = abi_result.package_id;
         let address = if expected_id != ObjectID::ZERO {
@@ -207,6 +272,11 @@ impl<
                     return Err(eyre!("package {} modules mismatch", expected_id).into());
                 }
                 log::info!("package {} modules match; using as deps", expected_id);
+                log::info!(
+                    "Using package {} at {}",
+                    abi_result.package_name,
+                    expected_id
+                );
                 expected_id
             } else {
                 log::info!(
@@ -222,7 +292,9 @@ impl<
                         .map(|v| v.self_id().name().to_string())
                         .join(", ")
                 );
-                executor.force_deploy_contract_at(expected_id, compiled_result)?
+                let id = executor.force_deploy_contract_at(expected_id, compiled_result)?;
+                log::info!("Deploying package {} at {}", abi_result.package_name, id);
+                id
             }
         } else {
             log::debug!("published-at is not set; entering auto-publish + rewrite path");
@@ -247,12 +319,65 @@ impl<
                     .join(",")
             );
             let mut original_to_storage: BTreeMap<ObjectID, ObjectID> = BTreeMap::new();
+            let mut override_resolved: BTreeMap<String, (ObjectID, ObjectID)> = BTreeMap::new();
             let mut zero_module_addr_map: BTreeMap<String, ObjectID> = BTreeMap::new();
-            if !compiled_result.unpublished_dep_order().is_empty() {
-                // Best-effort: ensure any dependency packages referenced by a dep publish exist in the store.
-                // Otherwise `deploy_contract` will fail with LINKER_ERROR ("Cannot find ModuleId ... in data cache").
-                let mut ensured: BTreeSet<ObjectID> = BTreeSet::new();
+            // Best-effort: ensure any dependency packages referenced by a dep publish exist in the store.
+            // Otherwise `deploy_contract` will fail with LINKER_ERROR ("Cannot find ModuleId ... in data cache").
+            let mut ensured: BTreeSet<ObjectID> = BTreeSet::new();
+            let mut redeployed: BTreeSet<String> = BTreeSet::new();
 
+            if let Some(overrides) = package_address_overrides {
+                for (name, ov) in overrides.iter() {
+                    let storage_id = ObjectID::from(ov.published_at);
+                    let obj = self
+                        .db
+                        .get_object(&storage_id)
+                        .or_else(|| {
+                            self.db
+                                .get_package_object(&storage_id)
+                                .ok()
+                                .flatten()
+                                .map(Into::into)
+                        })
+                        .ok_or_else(|| {
+                            eyre!(
+                                "--package-address {}:{} not found in store; add it to --onchains first",
+                                name,
+                                storage_id
+                            )
+                        })?;
+                    let pkg = obj
+                        .data
+                        .try_as_package()
+                        .ok_or_else(|| eyre!("dep {} exists but not a package", storage_id))?;
+                    let detected_original = pkg.original_package_id();
+                    if let Some(user_orig) = ov.original {
+                        let user_orig = ObjectID::from(user_orig);
+                        if user_orig != detected_original {
+                            return Err(eyre!(
+                                "--package-address {} original mismatch: user={} onchain_detected={}",
+                                name,
+                                user_orig,
+                                detected_original
+                            )
+                            .into());
+                        }
+                    }
+                    let original_id = ov.original.map(ObjectID::from).unwrap_or(detected_original);
+                    original_to_storage.insert(original_id, storage_id);
+                    override_resolved.insert(name.clone(), (original_id, storage_id));
+                }
+                log::debug!(
+                    "original_to_storage initialized from overrides: {}",
+                    original_to_storage
+                        .iter()
+                        .map(|(k, v)| format!("{}->{}", k, v))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                );
+            }
+
+            if !compiled_result.unpublished_dep_order().is_empty() {
                 // Only zero-address packages require name-based rewriting.
                 // Non-zero unpublished deps can be force-published at their compiled address,
                 // which avoids ambiguity when different packages share module names.
@@ -278,26 +403,71 @@ impl<
                     }
 
                     let dep_self_addr = ObjectID::from(*modules[0].address());
+                    let dep_is_zero_addr = dep_self_addr == ObjectID::ZERO;
 
+                    let mut forced_upgrade_publish: Option<(ObjectID, ObjectID)> = None;
+                    let redeploy_test = redeploy_test_packages
+                        .map(|s| s.contains(dep_name))
+                        .unwrap_or(false);
+                    log::debug!(
+                        "dep {} self_addr={} is_zero_addr={} redeploy_test={}",
+                        dep_name,
+                        dep_self_addr,
+                        dep_is_zero_addr,
+                        redeploy_test
+                    );
                     if let Some(ov) = package_address_overrides.and_then(|m| m.get(dep_name)) {
-                        let original = ov.original.unwrap_or(ov.published_at);
-                        let original_id = ObjectID::from(original);
                         let storage_id = ObjectID::from(ov.published_at);
-
-                        let exists = self
+                        log::debug!(
+                            "dep {} has override: user_original={} override_storage={}",
+                            dep_name,
+                            ov.original
+                                .map(|v| ObjectID::from(v).to_string())
+                                .unwrap_or_else(|| "<auto>".to_string()),
+                            storage_id
+                        );
+                        let obj = self
                             .db
-                            .get_package_object(&storage_id)
-                            .ok()
-                            .flatten()
-                            .is_some()
-                            || self.db.get_object(&storage_id).is_some();
-                        if !exists {
-                            return Err(eyre!(
-                                "--package-address {}:{} not found in store; add it to --onchains first",
-                                dep_name,
-                                storage_id
-                            )
-                            .into());
+                            .get_object(&storage_id)
+                            .or_else(|| {
+                                self.db
+                                    .get_package_object(&storage_id)
+                                    .ok()
+                                    .flatten()
+                                    .map(Into::into)
+                            })
+                            .ok_or_else(|| {
+                                eyre!(
+                                    "--package-address {}:{} not found in store; add it to --onchains first",
+                                    dep_name,
+                                    storage_id
+                                )
+                            })?;
+                        let pkg = obj
+                            .data
+                            .try_as_package()
+                            .ok_or_else(|| eyre!("dep {} exists but not a package", storage_id))?;
+                        let detected_original = pkg.original_package_id();
+                        let original_id =
+                            ov.original.map(ObjectID::from).unwrap_or(detected_original);
+                        log::debug!(
+                            "dep {} onchain detected_original={} resolved_original={}",
+                            dep_name,
+                            detected_original,
+                            original_id
+                        );
+
+                        if let Some(user_orig) = ov.original {
+                            let user_orig = ObjectID::from(user_orig);
+                            if user_orig != detected_original {
+                                return Err(eyre!(
+                                    "--package-address {} original mismatch: user={} onchain_detected={}",
+                                    dep_name,
+                                    user_orig,
+                                    detected_original
+                                )
+                                .into());
+                            }
                         }
 
                         log::info!(
@@ -308,30 +478,43 @@ impl<
                         );
                         original_to_storage.insert(original_id, storage_id);
 
-                        if dep_self_addr == ObjectID::ZERO {
-                            for md in modules.iter() {
-                                let name = md.name().to_string();
-                                if let Some(prev) =
-                                    zero_module_addr_map.insert(name.clone(), original_id)
-                                {
-                                    if prev != original_id {
-                                        return Err(eyre!(
-                                            "duplicate zero-address module name {} mapped to both {} and {}",
-                                            name,
-                                            prev,
-                                            original_id
-                                        )
-                                        .into());
-                                    }
-                                }
-                            }
+                        if dep_is_zero_addr {
+                            record_zero_address_modules(
+                                &mut zero_module_addr_map,
+                                modules,
+                                original_id,
+                            )?;
                         }
-                        continue;
+
+                        if redeploy_test {
+                            log::info!(
+                                "Redeploying local test build for {} (original={}, storage={})",
+                                dep_name,
+                                original_id,
+                                storage_id
+                            );
+                            forced_upgrade_publish = Some((original_id, storage_id));
+                        } else {
+                            log::debug!(
+                                "dep {} override present and redeploy_test=false; skip publish and use onchain package (storage={})",
+                                dep_name,
+                                storage_id
+                            );
+                            continue;
+                        }
                     }
 
                     let mut dep_pkg =
                         SuiCompiledPackage::new_unpublished(dep_name.clone(), modules.clone());
-                    if dep_self_addr == ObjectID::ZERO && !zero_module_addr_map.is_empty() {
+                    if let Some((runtime_id, _storage_id)) = forced_upgrade_publish {
+                        log::debug!(
+                            "dep {} forcing runtime self address to {} for upgraded redeploy",
+                            dep_name,
+                            runtime_id
+                        );
+                        dep_pkg.set_self_address(runtime_id)?;
+                    }
+                    if dep_is_zero_addr && !zero_module_addr_map.is_empty() {
                         if let Err(e) = dep_pkg.rewrite_deps_by_module_name(&zero_module_addr_map) {
                             log::debug!(
                                 "ERROR: rewrite deps by module name failed for dep {}: {:?}",
@@ -342,6 +525,17 @@ impl<
                         }
                     }
                     dep_pkg.ensure_immediate_deps();
+                    dep_pkg.rewrite_dependency_storage_ids(&original_to_storage);
+                    log::debug!(
+                        "dep {} immediate deps: {}",
+                        dep_name,
+                        dep_pkg
+                            .dependencies()
+                            .iter()
+                            .map(|d| d.to_string())
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    );
 
                     // Ensure dependency packages exist for this dep before publishing it.
                     // This is especially important for zero-address deps that must use `deploy_contract`.
@@ -447,8 +641,35 @@ impl<
                     }
 
                     let dep_pkg = dep_pkg.movy_mock()?;
+                    log::debug!(
+                        "dep {} publish mode: {}",
+                        dep_name,
+                        if forced_upgrade_publish.is_some() {
+                            "force_redeploy_upgraded_contract_at"
+                        } else if dep_self_addr != ObjectID::ZERO {
+                            "force_deploy_contract_at (fixed address)"
+                        } else {
+                            "deploy_contract (fresh publish)"
+                        }
+                    );
 
-                    let dep_address = if dep_self_addr != ObjectID::ZERO {
+                    let dep_address = if let Some((_runtime_id, storage_id)) =
+                        forced_upgrade_publish
+                    {
+                        // Keep storage ID stable but bump package version in-place to preserve upgrade linkage.
+                        match executor.force_redeploy_upgraded_contract_at(storage_id, dep_pkg) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                log::debug!(
+                                    "ERROR: redeploy upgraded dep {} at {} failed: {:?}",
+                                    dep_name,
+                                    storage_id,
+                                    e
+                                );
+                                return Err(e);
+                            }
+                        }
+                    } else if dep_self_addr != ObjectID::ZERO {
                         if self.db.get_object(&dep_self_addr).is_some() {
                             dep_self_addr
                         } else {
@@ -466,6 +687,7 @@ impl<
                             }
                         }
                     } else {
+                        // Fresh publish for zero-address deps.
                         match executor.deploy_contract(
                             epoch,
                             epoch_ms,
@@ -485,35 +707,35 @@ impl<
                         }
                     };
 
+                    log::info!("Deploying package {} at {}", dep_name, dep_address);
                     log::debug!(
                         "dep publish {}: self={} -> published={}",
                         dep_name,
                         dep_self_addr,
                         dep_address
                     );
+                    if forced_upgrade_publish.is_some() {
+                        redeployed.insert(dep_name.clone());
+                    }
 
-                    if dep_self_addr == ObjectID::ZERO {
-                        for md in modules.iter() {
-                            let name = md.name().to_string();
-                            if let Some(prev) =
-                                zero_module_addr_map.insert(name.clone(), dep_address)
-                            {
-                                if prev != dep_address {
-                                    log::debug!(
-                                        "ERROR: duplicate zero-address module name {} mapped to both {} and {}",
-                                        name,
-                                        prev,
-                                        dep_address
-                                    );
-                                    return Err(eyre!(
-                                        "duplicate zero-address module name {} mapped to both {} and {}",
-                                        name,
-                                        prev,
-                                        dep_address
-                                    )
-                                    .into());
-                                }
-                            }
+                    if dep_is_zero_addr {
+                        let record_addr =
+                            if let Some((runtime_id, _storage_id)) = forced_upgrade_publish {
+                                runtime_id
+                            } else {
+                                dep_address
+                            };
+                        if let Err(e) = record_zero_address_modules(
+                            &mut zero_module_addr_map,
+                            modules,
+                            record_addr,
+                        ) {
+                            log::debug!(
+                                "ERROR: zero-address module map update failed for dep {}: {:?}",
+                                dep_name,
+                                e
+                            );
+                            return Err(e);
                         }
                     }
                 }
@@ -532,8 +754,176 @@ impl<
                 log::debug!("no unpublished deps detected; skip auto-publish deps");
             }
 
+            // Redeploy test build for override packages that were not part of unpublished dep publish loop
+            // (i.e. published dependencies). This enables test-only helpers like `test_init`.
+            if let Some(pkgs) = redeploy_test_packages {
+                for name in pkgs.iter() {
+                    if redeployed.contains(name) {
+                        continue;
+                    }
+                    let Some((original_id, storage_id)) = override_resolved.get(name).copied()
+                    else {
+                        continue;
+                    };
+
+                    let mut modules_opt = compiled_result
+                        .dep_modules_by_addr()
+                        .get(&original_id)
+                        .and_then(|m| m.get(name))
+                        .cloned();
+                    if modules_opt.is_none() {
+                        // Fallback: search by package name across all compiled deps (best-effort).
+                        let mut found: Option<(ObjectID, Vec<CompiledModule>)> = None;
+                        for (addr, pkgs) in compiled_result.dep_modules_by_addr().iter() {
+                            if let Some(ms) = pkgs.get(name) {
+                                if found.is_some() {
+                                    return Err(eyre!(
+                                        "redeploy-test {} ambiguous: found compiled modules under multiple addrs (e.g. {} and {})",
+                                        name,
+                                        found.as_ref().unwrap().0,
+                                        addr
+                                    )
+                                    .into());
+                                }
+                                found = Some((*addr, ms.clone()));
+                            }
+                        }
+                        if let Some((_addr, ms)) = found {
+                            modules_opt = Some(ms);
+                        }
+                    }
+
+                    let Some(modules) = modules_opt else {
+                        return Err(eyre!(
+                            "redeploy-test {} requested but compiled modules not found; ensure its sources are included in the local build graph",
+                            name
+                        )
+                        .into());
+                    };
+                    if modules.is_empty() {
+                        return Err(eyre!("redeploy-test {} has 0 compiled modules", name).into());
+                    }
+
+                    log::info!(
+                        "Redeploying local test build for published dep {} (original={}, storage={})",
+                        name,
+                        original_id,
+                        storage_id
+                    );
+                    let self_addr = ObjectID::from(*modules[0].address());
+                    let mut dep_pkg = SuiCompiledPackage::new_unpublished(name.clone(), modules);
+                    if self_addr == ObjectID::ZERO {
+                        dep_pkg.set_self_address(original_id)?;
+                    }
+                    if !zero_module_addr_map.is_empty() {
+                        dep_pkg.rewrite_deps_by_module_name(&zero_module_addr_map)?;
+                    }
+                    dep_pkg.ensure_immediate_deps();
+                    dep_pkg.rewrite_dependency_storage_ids(&original_to_storage);
+
+                    let mut queue: VecDeque<ObjectID> =
+                        dep_pkg.dependencies().iter().copied().collect();
+                    while let Some(addr) = queue.pop_front() {
+                        if addr == ObjectID::ZERO {
+                            continue;
+                        }
+                        if !ensured.insert(addr) {
+                            continue;
+                        }
+                        let exists = self.db.get_package_object(&addr).ok().flatten().is_some()
+                            || self.db.get_object(&addr).is_some();
+                        if exists {
+                            continue;
+                        }
+                        log::debug!(
+                            "dep {} missing in store (required by redeploy-test {}); trying force publish from compiled deps...",
+                            addr,
+                            name
+                        );
+                        let Some(candidates) = compiled_result.dep_modules_by_addr().get(&addr)
+                        else {
+                            log::debug!(
+                                "no compiled dep modules recorded for addr {} (required by redeploy-test {})",
+                                addr,
+                                name
+                            );
+                            continue;
+                        };
+                        if candidates.len() != 1 {
+                            log::debug!(
+                                "ambiguous dep candidates for addr {} (required by redeploy-test {}): {}",
+                                addr,
+                                name,
+                                candidates.keys().cloned().collect::<Vec<_>>().join(",")
+                            );
+                            continue;
+                        }
+                        let (cand_name, cand_modules) = candidates.iter().next().unwrap();
+                        if cand_modules.is_empty() {
+                            log::debug!(
+                                "dep candidate {} for addr {} has 0 modules (required by redeploy-test {})",
+                                cand_name,
+                                addr,
+                                name
+                            );
+                            continue;
+                        }
+                        let mut cand_pkg = SuiCompiledPackage::new_unpublished(
+                            cand_name.clone(),
+                            cand_modules.clone(),
+                        );
+                        if !zero_module_addr_map.is_empty() {
+                            cand_pkg.rewrite_deps_by_module_name(&zero_module_addr_map)?;
+                        }
+                        cand_pkg.ensure_immediate_deps();
+                        cand_pkg.rewrite_dependency_storage_ids(&original_to_storage);
+                        for d in cand_pkg.dependencies().iter().copied() {
+                            queue.push_back(d);
+                        }
+                        let cand_pkg = cand_pkg.movy_mock()?;
+                        executor.force_deploy_contract_at(addr, cand_pkg)?;
+                        log::debug!(
+                            "forced publish dep {} from package {} (required by redeploy-test {})",
+                            addr,
+                            cand_name,
+                            name
+                        );
+                    }
+
+                    let dep_pkg = dep_pkg.movy_mock()?;
+                    executor.force_redeploy_upgraded_contract_at(storage_id, dep_pkg)?;
+                    log::info!("Deploying package {} at {}", name, storage_id);
+                }
+            }
+
             compiled_result.ensure_immediate_deps();
+            log::debug!(
+                "root deps before storage-id rewrite: {}",
+                compiled_result
+                    .dependencies()
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            log::debug!(
+                "original_to_storage map: {}",
+                original_to_storage
+                    .iter()
+                    .map(|(k, v)| format!("{}->{}", k, v))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
             compiled_result.rewrite_dependency_storage_ids(&original_to_storage);
+            log::debug!(
+                "root deps after storage-id rewrite: {}",
+                compiled_result
+                    .dependencies()
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
 
             // Ensure every dependency package exists in the store before publishing root.
             // This catches the "address is set but package doesn't exist (yet)" case.
@@ -660,7 +1050,10 @@ impl<
                     .join(", ")
             );
             log::debug!("about to publish root package");
-            executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?
+            let id =
+                executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?;
+            log::info!("Deploying package {} at {}", abi_result.package_name, id);
+            id
         };
 
         let mut non_test_abi = abi_result.abi()?;

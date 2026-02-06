@@ -444,4 +444,94 @@ where
         self.db.commit_single_object(object)?;
         Ok(package_id)
     }
+
+    /// Force redeploy an *upgraded* package at an existing storage ID.
+    ///
+    /// This is used when the package storage ID differs from the runtime/original ID embedded in
+    /// module bytes (Sui upgrade semantics). We reuse the currently stored package as the "previous"
+    /// version and bump the package version in-place to keep linkage resolution working.
+    pub fn force_redeploy_upgraded_contract_at(
+        &mut self,
+        storage_id: ObjectID,
+        project: SuiCompiledPackage,
+    ) -> Result<ObjectID, MovyError> {
+        log::info!("force redeploy upgraded package at {}", storage_id);
+
+        let prev_obj = self
+            .db
+            .get_object(&storage_id)
+            .or_else(|| {
+                self.db
+                    .get_package_object(&storage_id)
+                    .ok()
+                    .flatten()
+                    .map(Into::into)
+            })
+            .ok_or_else(|| eyre!("previous package {} not found", storage_id))?;
+        let prev_pkg = prev_obj
+            .data
+            .try_as_package()
+            .ok_or_else(|| eyre!("object {} is not a package", storage_id))?
+            .clone();
+        log::debug!(
+            "previous package storage_id={} version={} original_id={}",
+            storage_id,
+            prev_pkg.version().value(),
+            prev_pkg.original_package_id()
+        );
+
+        let (modules, dependencies) = project.into_deployment();
+        let runtime_id = modules
+            .first()
+            .map(|m| ObjectID::from(*m.address()))
+            .unwrap_or(ObjectID::ZERO);
+        log::debug!(
+            "redeploy upgraded package storage_id={} new_runtime_id={} modules={} deps={}",
+            storage_id,
+            runtime_id,
+            modules.len(),
+            dependencies
+                .iter()
+                .map(|d| d.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+
+        let mut dep_packages = Vec::new();
+        for dep in dependencies.iter() {
+            if *dep == storage_id {
+                continue;
+            }
+            dep_packages.push(self.load_dependency_package(dep)?);
+        }
+
+        let object = Object::new_upgraded_package(
+            &prev_pkg,
+            storage_id,
+            &modules,
+            TransactionDigest::genesis_marker(),
+            &self.protocol_config,
+            dep_packages.iter(),
+        )?;
+
+        if object.id() != storage_id {
+            return Err(eyre!(
+                "forced redeploy id mismatch: expected {}, got {}",
+                storage_id,
+                object.id()
+            )
+            .into());
+        }
+
+        if let Some(pkg) = object.data.try_as_package() {
+            log::debug!(
+                "redeploy result storage_id={} version={} original_id={}",
+                storage_id,
+                pkg.version().value(),
+                pkg.original_package_id()
+            );
+        }
+        self.db.commit_single_object(object)?;
+        Ok(storage_id)
+    }
 }
