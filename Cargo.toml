@@ -69,7 +69,7 @@ move-disassembler = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-f
 move-ir-types = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 move-core-types = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 move-vm-types = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
-move-vm-runtime = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz", features = ["tracing", "testing"]}
+move-vm-runtime = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz", features = ["tracing"]}
 move-model = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 move-stackless-bytecode = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 sui-move-build = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
@@ -81,7 +81,7 @@ sui-config = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 sui-storage = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 sui-snapshot = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 sui-core = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
-sui-execution = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz", features = ["testing"]}
+sui-execution = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 shared-crypto = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 # sui-adapter-v2 = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 
