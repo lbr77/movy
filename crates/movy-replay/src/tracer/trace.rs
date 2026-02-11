@@ -16,7 +16,6 @@ use move_trace_format::{
     interface::{Tracer, Writer},
     value::SerializableMoveValue,
 };
-use move_vm_stack::Stack;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -38,6 +37,10 @@ impl TraceState {
             operand_stack: vec![],
             call_stack: BTreeMap::new(),
         }
+    }
+
+    pub fn notify_event(&mut self, event: &TraceEvent) {
+        self.apply_event(event);
     }
 
     /// Apply an event to the state machine and update the locals state accordingly.
@@ -153,7 +156,8 @@ impl Default for TraceState {
 }
 
 impl Tracer for TraceState {
-    fn notify(&mut self, event: &TraceEvent, mut write: &mut Writer<'_>, _stack: Option<&Stack>) {
-        self.apply_event(event);
+    fn notify(&mut self, event: &TraceEvent, _write: Writer<'_>) -> bool {
+        self.notify_event(event);
+        true
     }
 }

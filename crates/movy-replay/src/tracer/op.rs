@@ -3,7 +3,10 @@ use std::fmt::Display;
 use alloy_primitives::U256;
 use color_eyre::eyre::eyre;
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::{format::TraceValue, value::{SerializableMoveValue, SimplifiedMoveStruct}};
+use move_trace_format::{
+    format::TraceValue,
+    value::{SerializableMoveValue, SimplifiedMoveStruct},
+};
 use move_vm_types::values::IntegerValue;
 use movy_types::error::MovyError;
 use serde::{Deserialize, Serialize};
@@ -61,12 +64,12 @@ impl TryFrom<&SerializableMoveValue> for Magic {
             SerializableMoveValue::Address(bytes) => Ok(Self::Bytes(bytes.to_vec())),
             SerializableMoveValue::Struct(data) => {
                 // TODO: more generic way to serialize struct into bytes
-                let SimplifiedMoveStruct { type_, .. } = data;  
+                let SimplifiedMoveStruct { type_, .. } = data;
                 let mut bytes = type_.address.to_vec();
-                bytes.extend_from_slice(type_.module.as_bytes());  
-                bytes.extend_from_slice(type_.name.as_bytes());  
-                Ok(Self::Bytes(bytes))  
-            } 
+                bytes.extend_from_slice(type_.module.as_bytes());
+                bytes.extend_from_slice(type_.name.as_bytes());
+                Ok(Self::Bytes(bytes))
+            }
             _ => Err(eyre!("TraceValue is not an integer {:?}", value).into()),
         }
     }

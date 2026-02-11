@@ -37,12 +37,7 @@ pub trait TraceNotifier {
     ) -> Result<(), MovyError> {
         Ok(())
     }
-    fn notify(
-        &mut self,
-        event: &TraceEvent,
-        writer: &mut Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    );
+    fn notify(&mut self, event: &TraceEvent, writer: &mut Writer<'_>);
 }
 
 pub struct NotifierTracer<N, P = NoModuleProvider>
@@ -246,13 +241,8 @@ where
     N: TraceNotifier,
     P: ModuleProvider,
 {
-    fn notify(
-        &mut self,
-        event: &TraceEvent,
-        _writer: &mut Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    ) {
-        self.notifier.notify(event, _writer, _stack);
+    fn notify(&mut self, event: &TraceEvent, mut writer: Writer<'_>) -> bool {
+        self.notifier.notify(event, &mut writer);
 
         match event {
             TraceEvent::OpenFrame { frame, gas_left: _ } => {
@@ -299,5 +289,6 @@ where
                 }
             }
         }
+        true
     }
 }

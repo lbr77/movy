@@ -130,9 +130,8 @@ impl Tracer for TreeTracer {
     fn notify(
         &mut self,
         event: &move_trace_format::format::TraceEvent,
-        _writer: &mut move_trace_format::interface::Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    ) {
+        _writer: move_trace_format::interface::Writer<'_>,
+    ) -> bool {
         let inner = &mut self.inner;
         inner.evs.push(event.clone());
         match event {
@@ -162,5 +161,6 @@ impl Tracer for TreeTracer {
             }
             _ => {}
         }
+        true
     }
 }

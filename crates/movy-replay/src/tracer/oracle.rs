@@ -1,4 +1,4 @@
-use move_trace_format::{format::TraceEvent};
+use move_trace_format::format::TraceEvent;
 use movy_types::{
     error::MovyError,
     input::{FunctionIdent, MoveSequence},
@@ -6,10 +6,7 @@ use movy_types::{
 };
 use sui_types::effects::TransactionEffects;
 
-use crate::tracer::{
-    concolic::ConcolicState,
-    trace::TraceState,
-};
+use crate::tracer::{concolic::ConcolicState, trace::TraceState};
 
 pub trait SuiGeneralOracle<T, S> {
     fn pre_execution(
@@ -92,7 +89,13 @@ where
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(self
             .0
-            .event(event, trace_state, symbol_stack, current_function.clone(), state)?
+            .event(
+                event,
+                trace_state,
+                symbol_stack,
+                current_function.clone(),
+                state,
+            )?
             .into_iter()
             .chain(
                 self.1

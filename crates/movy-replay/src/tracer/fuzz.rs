@@ -341,13 +341,9 @@ where
     O: SuiGeneralOracle<T, S>,
     OT: MatchNameRef + MatchName,
 {
-    fn notify(
-        &mut self,
-        event: &TraceEvent,
-        writer: &mut Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    ) {
-        self.trace_state.notify(event, writer, None);
+    fn notify(&mut self, event: &TraceEvent, writer: &mut Writer<'_>) {
+        let _ = writer;
+        self.trace_state.notify_event(event);
     }
     fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError> {
         SuiFuzzTracer::notify_event(self, event)
