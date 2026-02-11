@@ -1,10 +1,10 @@
-use move_trace_format::{format::TraceEvent};
+use move_trace_format::format::TraceEvent;
 use serde_json::json;
 
 use movy_replay::tracer::{
     concolic::{ConcolicState, SymbolValue},
-    trace::{TraceState},
     oracle::SuiGeneralOracle,
+    trace::TraceState,
 };
 use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};
 use sui_types::effects::TransactionEffects;
@@ -32,7 +32,7 @@ impl<T, S> SuiGeneralOracle<T, S> for PrecisionLossOracle {
         _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         match event {
-            TraceEvent::BeforeInstruction {
+            TraceEvent::Instruction {
                 pc, instruction, ..
             } => {
                 let loss = match instruction {

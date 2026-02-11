@@ -10,13 +10,13 @@
 //!
 //! The memory tracer is useful for debugging, and  as an example of how to build up this
 //! state for more advanced analysis and also using the custom tracing trait.
-use move_vm_stack::Stack;
+use core::fmt;
 use move_trace_format::{
     format::{DataLoad, Effect, Location, Read, TraceEvent, TraceIndex, TraceValue, Write},
     interface::{Tracer, Writer},
     value::SerializableMoveValue,
 };
-use core::fmt;
+use move_vm_stack::Stack;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -128,7 +128,7 @@ impl TraceState {
                 }
             }
             // Instructions
-            TraceEvent::Instruction { .. } | TraceEvent::BeforeInstruction { .. } => (),
+            TraceEvent::Instruction { .. } => (),
         }
     }
 
@@ -155,6 +155,5 @@ impl Default for TraceState {
 impl Tracer for TraceState {
     fn notify(&mut self, event: &TraceEvent, mut write: &mut Writer<'_>, _stack: Option<&Stack>) {
         self.apply_event(event);
-        // no emit for 
     }
 }

@@ -1,12 +1,12 @@
 use move_binary_format::file_format::Bytecode;
 use move_core_types::u256::U256;
-use move_trace_format::{format::{TraceEvent, TraceValue}};
+use move_trace_format::format::{TraceEvent, TraceValue};
 use serde_json::json;
 
 use movy_replay::tracer::{
     concolic::{ConcolicState, value_bitwidth, value_to_u256},
-    trace::{TraceState},
     oracle::SuiGeneralOracle,
+    trace::TraceState,
 };
 use movy_types::{
     error::MovyError,
@@ -47,7 +47,7 @@ impl<T, S> SuiGeneralOracle<T, S> for OverflowOracle {
         _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         match event {
-            TraceEvent::BeforeInstruction {
+            TraceEvent::Instruction {
                 pc, instruction, ..
             } => {
                 if !matches!(instruction, Bytecode::Shl) {

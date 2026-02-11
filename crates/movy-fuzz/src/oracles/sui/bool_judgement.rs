@@ -1,5 +1,5 @@
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::{format::TraceEvent};
+use move_trace_format::format::TraceEvent;
 use serde_json::json;
 use sui_types::effects::TransactionEffects;
 use z3::{
@@ -9,8 +9,8 @@ use z3::{
 
 use movy_replay::tracer::{
     concolic::{ConcolicState, SymbolValue},
-    trace::{TraceState},
     oracle::SuiGeneralOracle,
+    trace::TraceState,
 };
 use movy_types::{
     error::MovyError,
@@ -42,7 +42,7 @@ impl<T, S> SuiGeneralOracle<T, S> for BoolJudgementOracle {
         _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         match event {
-            TraceEvent::BeforeInstruction {
+            TraceEvent::Instruction {
                 pc, instruction, ..
             } => {
                 let stack_syms = &symbol_stack.stack;

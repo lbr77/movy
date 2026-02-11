@@ -1,14 +1,13 @@
 use std::{cmp::Ordering, collections::BTreeMap, str::FromStr};
 
+use crate::event::InstructionExtraInformation;
+use crate::tracer::trace::TraceState;
 use log::{trace, warn};
 use move_binary_format::file_format::Bytecode;
 use move_core_types::{language_storage::TypeTag, u256::U256};
 use move_trace_format::{
-    format::{Effect, ExtraInstructionInformation, TraceEvent, TraceValue, TypeTagWithRefs},
+    format::{Effect, TraceEvent, TraceValue, TypeTagWithRefs},
     value::SerializableMoveValue,
-};
-use crate::tracer::{
-    trace::TraceState
 };
 use z3::ast::{Ast, Bool, Int};
 
@@ -34,6 +33,7 @@ pub struct ConcolicState {
     pub stack: Vec<SymbolValue>,
     pub locals: Vec<Vec<SymbolValue>>,
     pub args: Vec<BTreeMap<usize, Int>>,
+    pub pending_instruction_extra: Option<InstructionExtraInformation>,
     pub disable: bool,
 }
 
@@ -228,11 +228,25 @@ pub fn int_bvxor_const(x: &Int, mask: U256, bits: u32) -> Int {
 }
 
 impl ConcolicState {
+    pub fn handle_before_instruction(
+        &mut self,
+        ctx: &TraceEvent,
+        extra: Option<&InstructionExtraInformation>,
+        trace_state: &TraceState,
+    ) -> Option<Bool> {
+        if !matches!(ctx, TraceEvent::Instruction { .. }) {
+            return None;
+        }
+        self.pending_instruction_extra = extra.cloned();
+        self.notify_event(ctx, trace_state)
+    }
+
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
             locals: Vec::new(),
             args: Vec::new(),
+            pending_instruction_extra: None,
             disable: false,
         }
     }
@@ -289,25 +303,25 @@ impl ConcolicState {
     }
     #[inline]
     fn process_binary_op(&mut self, stack: &[TraceValue]) -> Option<(Int, Int)> {
-            let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-            let stack_len = stack.len();
-            let true_lhs = &stack[stack_len - 2];
-            let true_rhs = &stack[stack_len - 1];
-            let (new_l, new_r) = match (lhs, rhs) {
-                (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                    let new_r = Self::resolve_value(true_rhs);
-                    (l, new_r)
-                }
-                (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                    let new_l = Self::resolve_value(true_lhs);
-                    (new_l, r)
-                }
-                (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                    return None;
-                }
-            };
-            Some((new_l, new_r))
+        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        let stack_len = stack.len();
+        let true_lhs = &stack[stack_len - 2];
+        let true_rhs = &stack[stack_len - 1];
+        let (new_l, new_r) = match (lhs, rhs) {
+            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+            (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                let new_r = Self::resolve_value(true_rhs);
+                (l, new_r)
+            }
+            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                let new_l = Self::resolve_value(true_lhs);
+                (new_l, r)
+            }
+            (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                return None;
+            }
+        };
+        Some((new_l, new_r))
     }
     pub fn notify_event(&mut self, event: &TraceEvent, trace_state: &TraceState) -> Option<Bool> {
         if self.disable {
@@ -322,8 +336,6 @@ impl ConcolicState {
         {
             self.stack.pop();
         }
-
-
 
         match event {
             TraceEvent::External(v) => {
@@ -389,30 +401,30 @@ impl ConcolicState {
                 return_: _,
                 gas_left: _,
             } => {
-                trace!("Close frame. Current stack: {:?}", &trace_state.operand_stack);
+                trace!(
+                    "Close frame. Current stack: {:?}",
+                    &trace_state.operand_stack
+                );
                 self.locals.pop();
             }
-            TraceEvent::BeforeInstruction {
+            TraceEvent::Instruction {
                 type_parameters: _,
                 pc,
                 gas_left: _,
                 instruction,
-                extra,
             } => {
+                let extra = self.pending_instruction_extra.take();
                 if self.stack.len() != stack.len() {
-                        warn!(
-                            "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution",
-                            self.stack, stack, event
-                        );
-                        self.disable = true;
-                        return None;
-                    }
+                    warn!(
+                        "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution",
+                        self.stack, stack, event
+                    );
+                    self.disable = true;
+                    return None;
+                }
                 trace!(
                     "Before instruction at pc {}: {:?}, extra: {:?}. Current stack: {:?}",
-                    pc,
-                    instruction,
-                    extra,
-                    &trace_state.operand_stack
+                    pc, instruction, extra, &trace_state.operand_stack
                 );
                 match instruction {
                     Bytecode::Pop
@@ -914,8 +926,8 @@ impl ConcolicState {
                     }
                     Bytecode::Pack(_) | Bytecode::PackGeneric(_) => {
                         match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::Pack(count)
-                            | ExtraInstructionInformation::PackGeneric(count) => {
+                            InstructionExtraInformation::Pack(count)
+                            | InstructionExtraInformation::PackGeneric(count) => {
                                 for _ in 0..*count {
                                     self.stack.pop();
                                 }
@@ -927,8 +939,8 @@ impl ConcolicState {
                     Bytecode::Unpack(_) | Bytecode::UnpackGeneric(_) => {
                         self.stack.pop();
                         match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::Unpack(count)
-                            | ExtraInstructionInformation::UnpackGeneric(count) => {
+                            InstructionExtraInformation::Unpack(count)
+                            | InstructionExtraInformation::UnpackGeneric(count) => {
                                 for _ in 0..*count {
                                     self.stack.push(SymbolValue::Unknown); // represent each field as unknown
                                 }
@@ -938,8 +950,8 @@ impl ConcolicState {
                     }
                     Bytecode::PackVariant(_) | Bytecode::PackVariantGeneric(_) => {
                         match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::PackVariant(count)
-                            | ExtraInstructionInformation::PackVariantGeneric(count) => {
+                            InstructionExtraInformation::PackVariant(count)
+                            | InstructionExtraInformation::PackVariantGeneric(count) => {
                                 for _ in 0..*count {
                                     self.stack.pop();
                                 }
@@ -961,8 +973,8 @@ impl ConcolicState {
                             return None;
                         }
                         match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::UnpackVariant(count)
-                            | ExtraInstructionInformation::UnpackVariantGeneric(count) => {
+                            InstructionExtraInformation::UnpackVariant(count)
+                            | InstructionExtraInformation::UnpackVariantGeneric(count) => {
                                 for _ in 0..*count {
                                     self.stack.push(SymbolValue::Unknown); // represent each field as unknown
                                 }

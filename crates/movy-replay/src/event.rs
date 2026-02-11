@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, marker::PhantomData};
 use move_binary_format::CompiledModule;
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::{
-    format::{TraceEvent, ExtraInstructionInformation},
+    format::TraceEvent,
     interface::{Tracer, Writer},
 };
 use movy_types::error::MovyError;
@@ -30,6 +30,13 @@ impl ModuleProvider for NoModuleProvider {
 
 pub trait TraceNotifier {
     fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError>;
+    fn handle_before_instruction(
+        &mut self,
+        _ctx: &TraceEvent,
+        _extra: Option<&InstructionExtraInformation>,
+    ) -> Result<(), MovyError> {
+        Ok(())
+    }
     fn notify(
         &mut self,
         event: &TraceEvent,
@@ -94,7 +101,11 @@ where
     fn current_module(&self) -> Option<(AccountAddress, String)> {
         self.module_stack.last().cloned()
     }
-    fn get_or_load_module(&mut self, address: AccountAddress, name: &str) -> Option<&CompiledModule> {
+    fn get_or_load_module(
+        &mut self,
+        address: AccountAddress,
+        name: &str,
+    ) -> Option<&CompiledModule> {
         let key = (address, name.to_string());
 
         if !self.module_cache.contains_key(&key) {
@@ -107,22 +118,33 @@ where
     }
 }
 
-fn create_before_instruction<N, P>(
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum InstructionExtraInformation {
+    Pack(usize),
+    PackGeneric(usize),
+    PackVariant(usize),
+    PackVariantGeneric(usize),
+    Unpack(usize),
+    UnpackVariant(usize),
+    UnpackGeneric(usize),
+    UnpackVariantGeneric(usize),
+}
+
+fn create_instruction_extra<N, P>(
     tracer: &mut NotifierTracer<N, P>,
     event: &TraceEvent,
-) -> Option<TraceEvent>
+) -> Option<InstructionExtraInformation>
 where
     N: TraceNotifier,
     P: ModuleProvider,
-{   
+{
     match event {
-        TraceEvent::Instruction { pc, instruction, .. } => {
+        TraceEvent::Instruction { instruction, .. } => {
             use move_binary_format::file_format::Bytecode as B;
             use move_binary_format::file_format::StructFieldInformation;
             let mut extra = None;
 
             if let Some((address, name)) = tracer.current_module() {
-
                 if let Some(module) = tracer.get_or_load_module(address, &name) {
                     match instruction {
                         B::Unpack(sidx) => {
@@ -131,19 +153,18 @@ where
                                 StructFieldInformation::Native => 0,
                                 StructFieldInformation::Declared(fields) => fields.len(),
                             };
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::Unpack(field_count as usize));
+                            extra = Some(InstructionExtraInformation::Unpack(field_count as usize));
                         }
                         B::UnpackVariant(vidx)
                         | B::UnpackVariantImmRef(vidx)
                         | B::UnpackVariantMutRef(vidx) => {
                             let variant_handle = module.variant_handle_at(*vidx);
-                            let enum_def = module.enum_def_at(variant_handle.enum_def);
-                            let variant_def = module.variant_def_at(
-                                variant_handle.enum_def,
-                                variant_handle.variant,
-                            );
+                            let variant_def = module
+                                .variant_def_at(variant_handle.enum_def, variant_handle.variant);
                             let field_count = variant_def.fields.len();
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::UnpackVariant(field_count as usize));
+                            extra = Some(InstructionExtraInformation::UnpackVariant(
+                                field_count as usize,
+                            ));
                         }
                         B::UnpackGeneric(sidx) => {
                             let struct_inst = module.struct_instantiation_at(*sidx);
@@ -152,20 +173,22 @@ where
                                 StructFieldInformation::Native => 0,
                                 StructFieldInformation::Declared(fields) => fields.len(),
                             };
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::UnpackGeneric(field_count as usize));
+                            extra = Some(InstructionExtraInformation::UnpackGeneric(
+                                field_count as usize,
+                            ));
                         }
                         B::UnpackVariantGeneric(vidx)
                         | B::UnpackVariantGenericImmRef(vidx)
                         | B::UnpackVariantGenericMutRef(vidx) => {
                             let variant_inst_handle = module.variant_instantiation_handle_at(*vidx);
-                            let enum_inst = module.enum_instantiation_at(variant_inst_handle.enum_def);
-                            let enum_def = module.enum_def_at(enum_inst.def);
-                            let variant_def = module.variant_def_at(
-                                enum_inst.def,
-                                variant_inst_handle.variant,
-                            );
+                            let enum_inst =
+                                module.enum_instantiation_at(variant_inst_handle.enum_def);
+                            let variant_def =
+                                module.variant_def_at(enum_inst.def, variant_inst_handle.variant);
                             let field_count = variant_def.fields.len();
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::UnpackVariantGeneric(field_count as usize));
+                            extra = Some(InstructionExtraInformation::UnpackVariantGeneric(
+                                field_count as usize,
+                            ));
                         }
                         B::Pack(sidx) => {
                             let struct_def = module.struct_def_at(*sidx);
@@ -173,7 +196,7 @@ where
                                 StructFieldInformation::Native => 0,
                                 StructFieldInformation::Declared(fields) => fields.len(),
                             };
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::Pack(field_count as usize));
+                            extra = Some(InstructionExtraInformation::Pack(field_count as usize));
                         }
                         B::PackGeneric(sidx) => {
                             let struct_inst = module.struct_instantiation_at(*sidx);
@@ -182,41 +205,37 @@ where
                                 StructFieldInformation::Native => 0,
                                 StructFieldInformation::Declared(fields) => fields.len(),
                             };
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::PackGeneric(field_count as usize));
+                            extra = Some(InstructionExtraInformation::PackGeneric(
+                                field_count as usize,
+                            ));
                         }
                         B::PackVariant(vidx) => {
                             let variant_handle = module.variant_handle_at(*vidx);
-                            let enum_def = module.enum_def_at(variant_handle.enum_def);
-                            let variant_def = module.variant_def_at(
-                                variant_handle.enum_def,
-                                variant_handle.variant,
-                            );
+                            let variant_def = module
+                                .variant_def_at(variant_handle.enum_def, variant_handle.variant);
                             let field_count = variant_def.fields.len();
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::PackVariant(field_count as usize));
+                            extra = Some(InstructionExtraInformation::PackVariant(
+                                field_count as usize,
+                            ));
                         }
                         B::PackVariantGeneric(vidx) => {
                             let variant_inst_handle = module.variant_instantiation_handle_at(*vidx);
-                            let enum_inst = module.enum_instantiation_at(variant_inst_handle.enum_def);
-                            let enum_def = module.enum_def_at(enum_inst.def);
-                            let variant_def = module.variant_def_at(
-                                enum_inst.def,
-                                variant_inst_handle.variant,
-                            );
+                            let enum_inst =
+                                module.enum_instantiation_at(variant_inst_handle.enum_def);
+                            let variant_def =
+                                module.variant_def_at(enum_inst.def, variant_inst_handle.variant);
                             let field_count = variant_def.fields.len();
-                            extra = Some(move_trace_format::format::ExtraInstructionInformation::PackVariantGeneric(field_count as usize));
+                            extra = Some(InstructionExtraInformation::PackVariantGeneric(
+                                field_count as usize,
+                            ));
                         }
                         _ => {}
                     }
-                } else {}
+                } else {
+                }
             }
 
-            Some(TraceEvent::BeforeInstruction {
-                pc: *pc,
-                instruction: instruction.clone(),
-                extra,
-                type_parameters: vec![],
-                gas_left: 0,
-            })
+            extra
         }
         _ => None,
     }
@@ -236,10 +255,6 @@ where
         self.notifier.notify(event, _writer, _stack);
 
         match event {
-            TraceEvent::BeforeInstruction { .. } => {
-                return;
-            }
-
             TraceEvent::OpenFrame { frame, gas_left: _ } => {
                 let address = *frame.module.address();
                 let name = frame.module.name().to_string();
@@ -263,13 +278,16 @@ where
             }
 
             TraceEvent::Instruction { .. } => {
-                // send before instruction
-                if let Some(before_instruction) = create_before_instruction(self, event) {
-                    if let Err(e) = self.notifier.notify_event(&before_instruction) {
-                        log::error!("NotifierTracer: failed to notify BeforeInstruction: {:?}", e);
-                    }
+                let extra = create_instruction_extra(self, event);
+                if let Err(e) = self
+                    .notifier
+                    .handle_before_instruction(event, extra.as_ref())
+                {
+                    log::error!(
+                        "NotifierTracer: failed to handle before instruction: {:?}",
+                        e
+                    );
                 }
-                // send instruction
                 if let Err(e) = self.notifier.notify_event(event) {
                     log::error!("NotifierTracer: failed to notify Instruction: {:?}", e);
                 }

@@ -1,11 +1,11 @@
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::{format::TraceEvent};
+use move_trace_format::format::TraceEvent;
 use movy_types::input::MoveSequence;
 use movy_types::oracle::OracleFinding;
 use serde_json::json;
 
 use movy_replay::tracer::concolic::value_bitwidth;
-use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle,trace::TraceState};
+use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::error::MovyError;
 use sui_types::effects::TransactionEffects;
 
@@ -31,7 +31,7 @@ impl<T, S> SuiGeneralOracle<T, S> for TypeConversionOracle {
         _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         match event {
-            TraceEvent::BeforeInstruction {
+            TraceEvent::Instruction {
                 pc, instruction, ..
             } => {
                 let stack = &trace_state.operand_stack;
