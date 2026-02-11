@@ -15,26 +15,24 @@ fn build_std(dir: &Path, test: bool) -> Vec<SuiCompiledPackage> {
     if previous_build.exists() {
         std::fs::remove_dir_all(&previous_build).unwrap();
     }
-    let (_, resolved) = build_package_resolved(dir, test).unwrap();
+    let (_, package_paths) = build_package_resolved(dir, test).unwrap();
     let flag = if test { "testing" } else { "non-testing" };
     let mut deps = vec![];
-    for (package_name, package) in resolved.package_table.iter() {
-        if package_name.as_str() != "hello_std" {
-            cargo_print!(
-                "Building {} std {} at {}",
-                flag,
-                package_name.as_str(),
-                package.package_path.display()
-            );
+    for package_path in package_paths {
+        cargo_print!(
+            "Building {} std package at {}",
+            flag,
+            package_path.display()
+        );
 
-            let out =
-                SuiCompiledPackage::build_all_unpublished_from_folder(&package.package_path, test)
-                    .unwrap();
-            let build_directory = package.package_path.join("build");
-            if build_directory.exists() {
-                std::fs::remove_dir_all(&build_directory).unwrap();
-            }
+        let out =
+            SuiCompiledPackage::build_all_unpublished_from_folder(&package_path, test).unwrap();
+        if out.package_name != "hello_std" {
             deps.push(out);
+        }
+        let build_directory = package_path.join("build");
+        if build_directory.exists() {
+            std::fs::remove_dir_all(&build_directory).unwrap();
         }
     }
     deps

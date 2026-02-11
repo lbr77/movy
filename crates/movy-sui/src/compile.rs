@@ -5,43 +5,72 @@ use itertools::Itertools;
 use log::{debug, trace};
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Flavor;
-use move_package::{
-    resolution::resolution_graph::ResolvedGraph, source_package::layout::SourcePackageLayout,
-};
 use movy_types::{
     abi::{MOVY_INIT, MOVY_ORACLE, MovePackageAbi},
     error::MovyError,
     input::MoveAddress,
 };
 use serde::{Deserialize, Serialize};
-use sui_move_build::{BuildConfig, CompiledPackage, build_from_resolution_graph, implicit_deps};
-use sui_package_management::{PublishedAtError, system_package_versions::latest_system_packages};
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_types::{base_types::ObjectID, digests::get_mainnet_chain_identifier};
 
 pub fn build_package_resolved(
     folder: &Path,
     test_mode: bool,
-) -> Result<(CompiledPackage, ResolvedGraph), MovyError> {
-    let mut cfg = move_package::BuildConfig::default();
-    cfg.implicit_dependencies = implicit_deps(latest_system_packages());
-    cfg.default_flavor = Some(Flavor::Sui);
-    cfg.lock_file = Some(folder.join(SourcePackageLayout::Lock.path()));
-    cfg.test_mode = test_mode;
-    cfg.silence_warnings = true;
-
-    let cfg = BuildConfig {
-        config: cfg,
-        run_bytecode_verifier: false,
-        print_diags_to_stderr: false,
-        chain_id: Some(get_mainnet_chain_identifier().to_string()),
-    };
+) -> Result<(CompiledPackage, Vec<std::path::PathBuf>), MovyError> {
+    let mut cfg = BuildConfig::new_for_testing();
+    cfg.config.default_flavor = Some(Flavor::Sui);
+    cfg.config.test_mode = test_mode;
+    cfg.config.silence_warnings = true;
+    cfg.run_bytecode_verifier = false;
+    cfg.print_diags_to_stderr = false;
+    cfg.environment.id = get_mainnet_chain_identifier().to_string();
+    cfg.environment.name = "mainnet".to_string();
     trace!("Build config is {:?}", &cfg.config);
 
-    // cfg.compile_package(path, writer) // reference
-    let chain_id = cfg.chain_id.clone();
-    let resolution_graph = cfg.resolution_graph(folder, chain_id.clone())?;
-    let artifacts = build_from_resolution_graph(resolution_graph.clone(), false, false, chain_id)?;
-    Ok((artifacts, resolution_graph))
+    let package_paths = cfg
+        .config
+        .package_loader(folder, &cfg.environment)
+        .load_sync()?
+        .packages()
+        .into_iter()
+        .map(|pkg| pkg.path().path().to_path_buf())
+        .collect::<Vec<_>>();
+
+    let artifacts = cfg.build(folder)?;
+    Ok((artifacts, package_paths))
+}
+
+mod compiled_module_serde {
+    use move_binary_format::CompiledModule;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError};
+
+    pub fn serialize<S>(modules: &[CompiledModule], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut raw = Vec::with_capacity(modules.len());
+        for module in modules {
+            let mut bytes = Vec::new();
+            module
+                .serialize_with_version(module.version, &mut bytes)
+                .map_err(serde::ser::Error::custom)?;
+            raw.push(bytes);
+        }
+        raw.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<CompiledModule>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = Vec::<Vec<u8>>::deserialize(deserializer)?;
+        raw.into_iter()
+            .map(|bytes| {
+                CompiledModule::deserialize_with_defaults(&bytes).map_err(D::Error::custom)
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +78,7 @@ pub struct SuiCompiledPackage {
     pub package_id: ObjectID,
     pub package_name: String,
     pub package_names: Vec<String>,
+    #[serde(with = "compiled_module_serde")]
     modules: Vec<CompiledModule>,
     dependencies: Vec<ObjectID>,
     published_dependencies: Vec<ObjectID>,
@@ -144,17 +174,9 @@ impl SuiCompiledPackage {
         test_mode: bool,
     ) -> Result<SuiCompiledPackage, MovyError> {
         let (artifacts, _) = build_package_resolved(folder, test_mode)?;
-        debug!(
-            "artifacts dep: {:?}",
-            artifacts.dependency_graph.topological_order()
-        );
         debug!("published: {:?}", artifacts.dependency_ids.published);
 
-        let root_address = match artifacts.published_at {
-            Ok(address) => address,
-            Err(PublishedAtError::NotPresent) => ObjectID::ZERO,
-            _ => return Err(eyre!("Invalid published-at: {:?}", &artifacts.published_at).into()),
-        };
+        let root_address = artifacts.published_at.unwrap_or(ObjectID::ZERO);
         debug!("Root address is {}", root_address);
         let package_name = artifacts
             .package
@@ -261,7 +283,7 @@ mod test {
         path::PathBuf,
     };
 
-    use crate::compile::{SuiCompiledPackage, build_package_resolved};
+    use crate::compile::SuiCompiledPackage;
 
     #[test]
     fn test_build_simple() {
