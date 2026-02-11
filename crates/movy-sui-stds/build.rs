@@ -59,7 +59,6 @@ fn write_bcs<T: Serialize>(path: &Path, val: T) {
 fn main() {
     let std = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/hello_std"));
     let movy = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/movy"));
-    println!("cargo::rerun-if-changed={}", std.join("sources").display());
     println!("cargo::rerun-if-changed={}", movy.join("sources").display());
     println!(
         "cargo::rerun-if-changed={}",
