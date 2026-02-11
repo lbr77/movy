@@ -31,7 +31,8 @@ pub fn build_package_resolved(
     let package_paths = cfg
         .config
         .package_loader(folder, &cfg.environment)
-        .load_sync()?
+        .load_sync()
+        .map_err(anyhow::Error::from)?
         .packages()
         .into_iter()
         .map(|pkg| pkg.path().path().to_path_buf())
