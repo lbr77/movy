@@ -10,7 +10,7 @@ public fun dummy_tx_hash_with_hint(hint: u64): vector<u8> {
     tx_hash
 }
 
-public fun new_from_hint(
+public fun new_tx_ctx_from_hint(
     addr: address,
     hint: u64,
     epoch: u64,

@@ -176,7 +176,7 @@ where
             success,
         };
 
-        if tracing::log_enabled!(tracing::Level::Debug) {
+        if tracing::enabled!(tracing::Level::DEBUG) {
             for ev in events.iter() {
                 if let Some((st, ev)) = state.fuzz_state().decode_sui_event(ev)? {
                     tracing::debug!(

@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::{analysis::AnlaysisArgs, sui::SuiArgs};
+use std::io::IsTerminal;
 
 mod analysis;
 mod aptos;

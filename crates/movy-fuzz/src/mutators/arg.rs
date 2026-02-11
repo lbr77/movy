@@ -155,8 +155,8 @@ where
     let constraints = cmp_constraints
         .into_iter()
         .chain(target_function_logs.iter().filter_map(|log| match log {
-            tracing::CastLog(c) => c.constraint.clone(),
-            tracing::ShlLog(s) => s.constraint.clone(),
+            Log::CastLog(c) => c.constraint.clone(),
+            Log::ShlLog(s) => s.constraint.clone(),
             _ => None,
         }))
         .collect::<Vec<_>>();

@@ -14,7 +14,7 @@ public fun movy_init(
     deployer: address,
     attacker: address
 ) {
-    let ctx = cheats::new_from_hint(deployer, 1, 1, 1, 1);
+    let ctx = cheats::new_tx_ctx_from_hint(deployer, 1, 1, 1, 1);
 }
 
 // Helper
