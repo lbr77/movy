@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use movy_types::error::MovyError;
 
-use log::{debug, trace, warn};
+use tracing::{debug, trace, warn};
 use move_binary_format::CompiledModule;
 use move_model::{
     ast::ModuleName,

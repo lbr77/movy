@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
-use log::debug;
+use tracing::debug;
 use movy_types::{
     abi::MoveAbiSignatureToken,
     input::{

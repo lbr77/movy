@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, io::Write, path::Path};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
-use log::{debug, trace};
+use tracing::{debug, trace};
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Flavor;
 use move_package::{
@@ -105,7 +105,7 @@ impl SuiCompiledPackage {
         let address: MoveAddress = (*md.address()).into();
         let mname = md.name().to_string();
         if !md.publishable {
-            log::debug!("Mock module publishable {}::{}", address, mname);
+            tracing::debug!("Mock module publishable {}::{}", address, mname);
             md.publishable = true;
         };
         md

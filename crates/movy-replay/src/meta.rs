@@ -157,7 +157,7 @@ impl Metadata {
         &self,
         event: &Event,
     ) -> Result<Option<(StructTag, serde_json::Value)>, MovyError> {
-        log::debug!("Decoding event {}", event.type_.to_canonical_string(true));
+        tracing::debug!("Decoding event {}", event.type_.to_canonical_string(true));
         let id: MoveAddress = event.type_.address.into();
         if let Some(st) =
             self.get_struct(&id, event.type_.module.as_str(), event.type_.name.as_str())
@@ -169,7 +169,7 @@ impl Metadata {
                 if let Some(typ) = abi_ty.to_move_type_layout(&[], &self.structs_mapping) {
                     typs.push(typ);
                 } else {
-                    log::debug!("decode_event: abi_ty {} is mising", &abi_ty);
+                    tracing::debug!("decode_event: abi_ty {} is mising", &abi_ty);
                 }
             }
             if let Some(layout) = st.to_move_struct_layout(&typs, &self.structs_mapping) {
@@ -179,14 +179,14 @@ impl Metadata {
                 )?;
                 return Ok(Some(type_and_fields_from_move_event_data(e)?));
             } else {
-                log::debug!(
+                tracing::debug!(
                     "can not convert to move struct layout for {} and {:?}",
                     st.struct_name,
                     &typs
                 );
             }
         } else {
-            log::debug!("the event struct is not known");
+            tracing::debug!("the event struct is not known");
         }
 
         Ok(None)

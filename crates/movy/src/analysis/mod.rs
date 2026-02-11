@@ -19,7 +19,7 @@ pub fn write_dot_may_with_pdf(dot: String, fpath: &Path) -> Result<(), MovyError
     fp.write_all(dot.as_bytes())?;
     fp.flush()?;
 
-    log::debug!("Converting pdf to {}", pdf_path.display());
+    tracing::debug!("Converting pdf to {}", pdf_path.display());
 
     match std::process::Command::new("dot")
         .args([
@@ -37,11 +37,11 @@ pub fn write_dot_may_with_pdf(dot: String, fpath: &Path) -> Result<(), MovyError
                 pdf_path.display()
             );
             p.wait()?;
-            log::debug!("Pdf written to {}!", pdf_path.display());
+            tracing::debug!("Pdf written to {}!", pdf_path.display());
         }
         Err(e) => {
             if let std::io::ErrorKind::NotFound = e.kind() {
-                log::debug!("No dot installed!");
+                tracing::debug!("No dot installed!");
             } else {
                 return Err(e.into());
             }

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use log::{debug, warn};
+use tracing::{debug, warn};
 use movy_types::{
     abi::MoveFunctionAbi,
     input::{

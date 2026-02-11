@@ -1,3 +1,4 @@
+pub mod cheats;
 pub mod compile;
 pub mod database;
 pub mod rpc;

@@ -8,9 +8,10 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-log = {workspace = true}
+tracing.workspace = true
 move-trace-format ={workspace = true}
 color-eyre = {workspace = true}
+move-vm-types = {workspace = true}
 move-vm-runtime = {workspace = true, features = ["tracing"]}
 sui-execution.workspace = true
 prometheus.workspace = true
@@ -31,6 +32,7 @@ tonic = { workspace = true, features = ["zstd", "transport", "tls-webpki-roots"]
 const-hex = {workspace = true}
 url = {workspace = true}
 auto_impl = {workspace = true}
+move-core-types = {workspace = true}
 move-compiler = {workspace = true}
 move-binary-format = {workspace = true}
 move-package = {workspace = true}

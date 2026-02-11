@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
-use log::{debug, trace, warn};
+use tracing::{debug, trace, warn};
 use movy_replay::db::ObjectStoreInfo;
 use movy_types::object::MoveOwner as Owner;
 use movy_types::{

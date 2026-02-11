@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap, marker::PhantomData};
 use color_eyre::eyre::{OptionExt, eyre};
 use libafl::{executors::ExitKind, observers::StdMapObserver};
 use libafl_bolts::tuples::{Handle, MatchName, MatchNameRef};
-use log::{trace, warn};
+use tracing::{trace, warn};
 use move_binary_format::file_format::Bytecode;
 use move_trace_format::{
     format::{Effect, TraceEvent},
@@ -54,7 +54,7 @@ where
         if let Some(map) = self.ob.get_mut(&handle) {
             if !map.is_empty() {
                 let pkg = self.packages.last().expect("stack empty?!");
-                log::trace!("Hit a coverage at {} within package hash {}", pc, pkg);
+                tracing::trace!("Hit a coverage at {} within package hash {}", pc, pkg);
                 let pc = pc as u64;
                 let pc = (pc >> 4) ^ (pc << 8) ^ *pkg;
                 let len = map.len() as u64;
@@ -70,14 +70,14 @@ where
 
     pub fn call_package(&mut self, package: String) {
         let pkg = Self::hash_package(package.as_bytes());
-        log::trace!("Calling package {} to {}", package, pkg);
+        tracing::trace!("Calling package {} to {}", package, pkg);
         self.packages.push(pkg);
         self.had_br = true;
     }
 
     pub fn call_end_package(&mut self) {
         let pkg = self.packages.pop();
-        log::trace!("Leaving {:?}", &pkg);
+        tracing::trace!("Leaving {:?}", &pkg);
         self.had_br = true;
     }
 
@@ -209,7 +209,7 @@ where
                     frame.module.name(),
                     &frame.function_name
                 );
-                log::debug!("Entering {}", &package);
+                tracing::debug!("Entering {}", &package);
                 self.current_functions.push(FunctionIdent::new(
                     &(*frame.module.address()).into(),
                     &frame.module.name().to_string(),

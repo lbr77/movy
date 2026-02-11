@@ -5,7 +5,7 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
-use log::debug;
+use tracing::debug;
 use movy_replay::db::ObjectStoreInfo;
 use movy_types::input::{
     InputArgument, MoveCall, MoveSequenceCall, SequenceArgument, SuiObjectInputArgument,

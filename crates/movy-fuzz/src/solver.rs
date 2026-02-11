@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, str::FromStr, sync::mpsc, thread, time::Duration};
 
 use alloy_primitives::{U128, U256};
-use log::{debug, info, trace, warn};
+use tracing::{debug, info, trace, warn};
 use movy_types::{
     abi::{MoveAbiSignatureToken, MoveFunctionAbi},
     input::InputArgument,

@@ -7,7 +7,7 @@ use libafl::{
     state::{HasExecutions, HasRand},
 };
 use libafl_bolts::tuples::{Handle, MatchNameRef, RefIndexable};
-use log::trace;
+use tracing::trace;
 use movy_replay::{
     db::{ObjectStoreInfo, ObjectStoreMintObject},
     exec::{ExecutionTracedResults, SuiExecutor},
@@ -176,17 +176,17 @@ where
             success,
         };
 
-        if log::log_enabled!(log::Level::Debug) {
+        if tracing::log_enabled!(tracing::Level::Debug) {
             for ev in events.iter() {
                 if let Some((st, ev)) = state.fuzz_state().decode_sui_event(ev)? {
-                    log::debug!(
+                    tracing::debug!(
                         "Event: {}({})",
                         st.to_canonical_string(true),
                         serde_json::to_string(&ev)
                             .unwrap_or_else(|e| format!("json err({}): {:?}", e, ev))
                     );
                 } else {
-                    log::debug!(
+                    tracing::debug!(
                         "Event {} missing for decoding",
                         ev.type_.to_canonical_string(true)
                     );

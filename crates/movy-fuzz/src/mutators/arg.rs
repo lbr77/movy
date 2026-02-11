@@ -6,7 +6,7 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
-use log::{debug, trace};
+use tracing::{debug, trace};
 use movy_replay::tracer::{concolic::ConcolicState, op::Log};
 use movy_types::input::{FunctionIdent, MoveSequenceCall, SequenceArgument};
 
@@ -141,7 +141,7 @@ where
     let mut cmp_constraints = target_function_logs
         .iter()
         .filter_map(|log| match log {
-            Log::CmpLog(cmp) => cmp.constraint.clone(),
+            tracing::CmpLog(cmp) => cmp.constraint.clone(),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -155,8 +155,8 @@ where
     let constraints = cmp_constraints
         .into_iter()
         .chain(target_function_logs.iter().filter_map(|log| match log {
-            Log::CastLog(c) => c.constraint.clone(),
-            Log::ShlLog(s) => s.constraint.clone(),
+            tracing::CastLog(c) => c.constraint.clone(),
+            tracing::ShlLog(s) => s.constraint.clone(),
             _ => None,
         }))
         .collect::<Vec<_>>();

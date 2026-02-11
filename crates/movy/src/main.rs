@@ -27,21 +27,27 @@ async fn main_entry() {
 }
 
 fn main() {
-    color_eyre::install().expect("Fail to install color_eyre");
+    let use_colors = std::io::stdout().is_terminal() && std::io::stderr().is_terminal();
+    color_eyre::install().unwrap();
     if let Ok(dot_file) = std::env::var("DOT") {
-        dotenvy::from_path(dot_file).expect("fail to import");
+        dotenvy::from_path(dot_file).expect("can not read dotenvy");
     } else {
         // Allows failure
         let _ = dotenvy::dotenv();
     }
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .parse_default_env()
-        .init();
-
+    let sub = tracing_subscriber::FmtSubscriber::builder()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::INFO.into())
+                .from_env()
+                .expect("env contains non-utf8"),
+        )
+        .with_ansi(use_colors)
+        .finish();
+    tracing::subscriber::set_global_default(sub).unwrap();
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .expect("can not build runtime")
+        .expect("can not build tokio")
         .block_on(main_entry())
 }

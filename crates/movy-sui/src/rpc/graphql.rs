@@ -3,7 +3,7 @@ use std::{ops::Deref, str::FromStr, sync::Arc};
 use color_eyre::eyre::eyre;
 use cynic::{GraphQlResponse, Operation, QueryBuilder};
 use fastcrypto::encoding::Encoding;
-use log::warn;
+use tracing::warn;
 use movy_types::error::MovyError;
 use reqwest::header::USER_AGENT;
 use serde::de::DeserializeOwned;
@@ -637,7 +637,7 @@ impl GraphQlClientInner {
                     )?;
                     out.push(obj);
                 } else {
-                    log::debug!(
+                    tracing::debug!(
                         "We have an object {} but not object at checkpoint {}",
                         &object.address.0,
                         checkpoint
@@ -715,7 +715,7 @@ impl GraphQlClientInner {
                     checkpoint: tx_checkpoint,
                 });
             } else {
-                log::debug!("Got a none in tx resp, probably {:?}", digests.get(idx));
+                tracing::debug!("Got a none in tx resp, probably {:?}", digests.get(idx));
             }
         }
 
@@ -747,7 +747,7 @@ impl GraphQlClientInner {
                 )?;
                 out.push(object);
             } else {
-                log::debug!("Got a none in objects resp, probably {:?}", keys.get(idx));
+                tracing::debug!("Got a none in objects resp, probably {:?}", keys.get(idx));
             }
         }
 
@@ -795,7 +795,7 @@ impl GraphQlClientInner {
                 };
                 out.push(data);
             } else {
-                log::debug!("Got a none in epoch resp, probably {:?}", keys.get(idx));
+                tracing::debug!("Got a none in epoch resp, probably {:?}", keys.get(idx));
             }
         }
 

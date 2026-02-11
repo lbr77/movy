@@ -1,4 +1,4 @@
-use log::{debug, trace};
+use tracing::{debug, trace};
 use move_trace_format::format::TraceEvent;
 use move_vm_stack::Stack;
 

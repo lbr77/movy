@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::BTreeMap, u64};
 
 use itertools::Itertools;
-use log::debug;
+use tracing::debug;
 use movy_types::error::MovyError;
 use serde::{Deserialize, Serialize};
 use sui_types::{

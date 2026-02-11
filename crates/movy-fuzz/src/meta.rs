@@ -8,7 +8,7 @@ use color_eyre::eyre::eyre;
 use itertools::Itertools;
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::{impl_serdeany, rands::Rand};
-use log::debug;
+use tracing::debug;
 use movy_replay::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
     env::SuiTestingEnv,

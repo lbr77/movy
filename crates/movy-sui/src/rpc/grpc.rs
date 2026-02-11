@@ -4,7 +4,7 @@ use color_eyre::eyre::eyre;
 use fastcrypto::hash::HashFunction;
 use fastcrypto::traits::Signer;
 use itertools::Itertools;
-use log::{debug, info};
+use tracing::{debug, info};
 use movy_types::error::MovyError;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -466,7 +466,7 @@ impl SuiGrpcClientInner {
     }
 
     pub async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef, MovyError> {
-        log::debug!("[RPC] get_object_ref for {}", object_id);
+        tracing::debug!("[RPC] get_object_ref for {}", object_id);
         let req = GetObjectRequest::new(&object_id.into_bytes().into())
             .with_read_mask(FieldMask::from_str("object_id,version,digest"));
 
@@ -517,7 +517,7 @@ impl SuiGrpcClientInner {
         &self,
         object_id: ObjectID,
     ) -> Result<Option<Object>, MovyError> {
-        log::debug!("[RPC] get_object_may_empty for {}", object_id);
+        tracing::debug!("[RPC] get_object_may_empty for {}", object_id);
         let req = GetObjectRequest::new(&object_id.into_bytes().into())
             .with_read_mask(FieldMask::from_str("bcs"));
 
@@ -545,7 +545,7 @@ impl SuiGrpcClientInner {
         object_id: ObjectID,
         ty: Option<TypeTag>,
     ) -> Result<Vec<Object>, MovyError> {
-        log::debug!("[RPC] list_dynamic_fields for {}", object_id);
+        tracing::debug!("[RPC] list_dynamic_fields for {}", object_id);
         let mut page_token = None;
         let mut client = self.live_data_client();
         let mut out = vec![];
@@ -644,7 +644,7 @@ impl SuiGrpcClientInner {
         tx: TransactionData,
         kp: &SuiKeyPair,
     ) -> Result<ExecutionOutcome, MovyError> {
-        log::debug!("[RPC] sign_and_execute_transaction for {}", tx.digest());
+        tracing::debug!("[RPC] sign_and_execute_transaction for {}", tx.digest());
         let (intent, sui_sig) = sign_tx(tx, kp)?;
 
         let scheme = match kp {
@@ -696,7 +696,7 @@ impl SuiGrpcClientInner {
         &self,
         tx: TransactionData,
     ) -> Result<ExecutionOutcome, MovyError> {
-        log::debug!("[RPC] dry_run_transaction for {}", tx.digest());
+        tracing::debug!("[RPC] dry_run_transaction for {}", tx.digest());
         let req: SimulateTransactionRequest = SimulateTransactionRequest::new(Transaction::from(tx))
             .with_read_mask(FieldMask::from_str(
                 "transaction,transaction.effects,transaction.events,transaction.balance_changes,outputs.return_values,transaction.objects.bcs",
@@ -726,7 +726,7 @@ impl SuiGrpcClientInner {
         &self,
         digest: TransactionDigest,
     ) -> Result<Option<TransactionResponse>, MovyError> {
-        log::debug!("[RPC] get_transaction for {}", digest);
+        tracing::debug!("[RPC] get_transaction for {}", digest);
         if let Some(json) = &self.json {
             match json
                 .read_api()

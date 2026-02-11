@@ -410,7 +410,7 @@ impl MoveAbiSignatureToken {
             MoveAbiSignatureToken::TypeParameter(idx, _) => match typs.get(*idx as usize) {
                 Some(ty) => Some(ty.clone()),
                 None => {
-                    log::trace!("type parameter {} missing from typs", idx);
+                    tracing::trace!("type parameter {} missing from typs", idx);
                     None
                 }
             },
@@ -463,7 +463,7 @@ impl MoveAbiSignatureToken {
         tys: &Vec<MoveAbility>,
         module: &CompiledModule,
     ) -> Self {
-        log::trace!(
+        tracing::trace!(
             "from_sui_token_module, value is {:?}, tys is {:?}",
             value,
             tys

@@ -66,6 +66,7 @@ impl SuiStaticAnalysisArgs {
         )?;
         let testing_env = SuiTestingEnv::new(env);
         testing_env.mock_testing_std()?;
+        testing_env.install_movy()?;
         let (target_packages, _, _) = self
             .target
             .build_env(

@@ -19,16 +19,19 @@ use movy_types::{
 use sui_types::{
     Identifier,
     base_types::{ObjectID, SequenceNumber},
+    committee::ProtocolVersion,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
-    object::Object,
+    move_package::MovePackage,
+    object::{Data, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{BackingPackageStore, BackingStore, ObjectStore},
+    supported_protocol_versions::ProtocolConfig,
 };
 
 use crate::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
-    exec::SuiExecutor,
+    exec::{SuiExecutor, testing_proto},
     tracer::NopTracer,
 };
 
@@ -62,21 +65,33 @@ impl<
         Self { db }
     }
 
+    pub fn install_movy(&self) -> Result<(), MovyError> {
+        let movy = movy_sui_stds::movy();
+        tracing::info!("Installing movy to {}", movy.package_id);
+        let (modules, deps) = movy.into_deployment();
+        let movy_package = Object::new_package_from_data(
+            Data::Package(MovePackage::new_system(SequenceNumber::new(), &modules,
+            deps.into_iter())),
+            TransactionDigest::genesis_marker(),
+        );
+        self.db.commit_single_object(movy_package)?;
+        Ok(())
+    }
+
     pub fn install_std(&self, test: bool) -> Result<(), MovyError> {
         // This is pretty hacky but works
         let stds = if test {
-            include_bytes!(concat!(env!("OUT_DIR"), "/std.testing")).to_vec()
+            movy_sui_stds::testing_std()
         } else {
-            include_bytes!(concat!(env!("OUT_DIR"), "/std")).to_vec()
+            movy_sui_stds::sui_std()
         };
-        let stds: Vec<SuiCompiledPackage> = serde_json::from_slice(&stds)?;
 
         let flag = if test { "testing" } else { "non-testing" };
         for out in stds {
             let out = out.movy_mock()?;
             if out.package_id != ObjectID::ZERO {
-                log::info!("Committing {} std {}", flag, out.package_id);
-                log::debug!(
+                tracing::info!("Committing {} std {}", flag, out.package_id);
+                tracing::debug!(
                     "Modules are {}",
                     out.all_modules_iter()
                         .map(|v| v.self_id().name().to_string())
@@ -118,14 +133,14 @@ impl<
         epoch_ms: u64,
         gas: ObjectID,
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
-        log::info!("Compiling {} with non-test mode...", path.display());
+        tracing::info!("Compiling {} with non-test mode...", path.display());
         let abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
         let mut non_test_abi = abi_result.abi()?;
-        log::info!("Compiling {} with test mode...", path.display());
+        tracing::info!("Compiling {} with test mode...", path.display());
         let compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
         let package_names = compiled_result.package_names.clone();
         let compiled_result = compiled_result.movy_mock()?;
-        log::debug!(
+        tracing::debug!(
             "test modules are {}",
             compiled_result
                 .test_modules()
@@ -155,7 +170,7 @@ impl<
                     vec![deployer_arg, attacker_arg],
                 );
                 let ptb = builder.finish();
-                log::info!("Detected a {} at: {}", MOVY_INIT, md.module_id);
+                tracing::info!("Detected a {} at: {}", MOVY_INIT, md.module_id);
                 let results = executor.run_ptb_with_gas::<NopTracer>(
                     ptb,
                     epoch,
@@ -164,8 +179,11 @@ impl<
                     gas,
                     None,
                 )?;
-                log::info!("Commiting movy_init effects...");
-                log::debug!(
+                if !results.effects.status().is_ok() {
+                    return Err(eyre!("movy_init reverts!").into());
+                }
+                tracing::info!("Commiting movy_init effects...");
+                tracing::debug!(
                     "Status: {:?} Changed Objects: {}, Removed Objects: {}",
                     results.effects.status(),
                     results

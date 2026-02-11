@@ -25,7 +25,7 @@ use libafl::{
     state::StdState,
 };
 use libafl_bolts::tuples::tuple_list;
-use log::{info, warn};
+use tracing::{info, warn};
 use movy_replay::db::{ObjectStoreCachedStore, ObjectStoreInfo};
 use movy_replay::env::SuiTestingEnv;
 use movy_replay::exec::SuiExecutor;

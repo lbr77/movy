@@ -108,10 +108,10 @@ impl MoveTypeGraph {
 
     pub fn add_module(&mut self, module: &MoveModuleAbi) {
         if self.modules.contains(&module.module_id) {
-            log::trace!("{} has been analyzed", &module.module_id);
+            tracing::trace!("{} has been analyzed", &module.module_id);
             return;
         }
-        log::trace!("Analyze module {}", &module.module_id);
+        tracing::trace!("Analyze module {}", &module.module_id);
         self.modules.insert(module.module_id.clone());
         for func in module.functions.iter() {
             self.add_function(func, &module.module_id);

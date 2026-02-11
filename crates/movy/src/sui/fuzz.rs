@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Args;
 use color_eyre::eyre::eyre;
-use log::debug;
+use tracing::debug;
 use movy_fuzz::{
     meta::{FuzzMetadata, TargetFilters},
     operations::sui_fuzz,
@@ -167,7 +167,7 @@ impl SuiFuzzArgs {
     pub async fn run(self) -> Result<(), MovyError> {
         if let Some(output) = &self.output {
             if output.exists() {
-                log::info!("We will remove {}", output.display());
+                tracing::info!("We will remove {}", output.display());
                 if self.force_removal {
                     std::fs::remove_dir_all(output)?;
                 } else {
@@ -202,6 +202,7 @@ impl SuiFuzzArgs {
         )?;
         let testing_env = SuiTestingEnv::new(env);
         testing_env.mock_testing_std()?;
+        testing_env.install_movy()?;
 
         // TODO: Drop dependency on graphql
         let (target_packages, local_abis, mut local_name_map) = self

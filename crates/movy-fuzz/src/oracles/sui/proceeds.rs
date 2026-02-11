@@ -3,7 +3,7 @@ use std::{
     ops::Neg,
 };
 
-use log::debug;
+use tracing::debug;
 use move_trace_format::format::TraceEvent;
 use move_vm_stack::Stack;
 

@@ -7,26 +7,14 @@ use movy::context::Self;
 use movy::oracle::crash_because;
 use sui::bag::Self;
 use movy::log::log_keyed_u64;
+use movy::cheats;
 
 #[test]
 public fun movy_init(
     deployer: address,
     attacker: address
 ) {
-    let mut scenario = ts::begin(deployer);
-    {
-        ts::next_tx(&mut scenario, deployer);
-        counter::create(ts::ctx(&mut scenario));
-    };
-
-    ts::next_tx(&mut scenario, attacker);
-    {
-        let mut counter_val = ts::take_shared<Counter>(&scenario);
-        counter::increment(&mut counter_val, 0);
-        ts::return_shared(counter_val);
-    };
-
-    ts::end(scenario);
+    let ctx = cheats::new_from_hint(deployer, 1, 1, 1, 1);
 }
 
 // Helper

@@ -51,7 +51,7 @@ where
         meta.gas_id.into(),
         tracer,
     )?;
-    log::info!("Replay status is {:?}", &out.results.effects.status());
+    tracing::info!("Replay status is {:?}", &out.results.effects.status());
     if let Some(tracer) = out.tracer {
         println!("Trace:\n{}", &tracer.take_inner().pprint());
     }
@@ -113,15 +113,15 @@ where
 
     let sched = QueueScheduler::new();
     let mut fuzzer = StdFuzzer::new(sched, corpus_feedback, crash_feedback);
-    let mut mgr = SimpleEventManager::new(SimpleMonitor::new(|s| log::info!("{}", s)));
+    let mut mgr = SimpleEventManager::new(SimpleMonitor::new(|s| tracing::info!("{}", s)));
     let id = fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed.clone())?;
 
-    log::info!("The input corpus id is {}", id);
+    tracing::info!("The input corpus id is {}", id);
     let case = if let Ok(case) = state.corpus().get(id) {
-        log::info!("The seed was found in corpus");
+        tracing::info!("The seed was found in corpus");
         case
     } else {
-        log::info!("The seed was found in solutions");
+        tracing::info!("The seed was found in solutions");
         state.solutions().get(id).expect("also not in corpus?!")
     };
 
@@ -129,14 +129,14 @@ where
     let input = input_borrow.input().as_ref().unwrap();
     let outcome = input.outcome.as_ref().unwrap();
     if outcome != seed.outcome.as_ref().unwrap() {
-        log::info!("We have different outcome");
-        log::info!(
+        tracing::info!("We have different outcome");
+        tracing::info!(
             "Previous outcome:\n{:?}\nCurrent outcome:\n{:?}",
             seed.outcome,
             input.outcome
         );
     } else {
-        log::info!("The replayed outcome is:\n{:?}", input.outcome);
+        tracing::info!("The replayed outcome is:\n{:?}", input.outcome);
     }
     Ok(())
 }

@@ -6,7 +6,7 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
-use log::debug;
+use tracing::debug;
 use movy_types::input::{MoveSequence, MoveSequenceCall, SequenceArgument};
 
 use crate::{

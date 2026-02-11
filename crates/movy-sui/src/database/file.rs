@@ -1,7 +1,7 @@
 use std::u64;
 
 use color_eyre::eyre::eyre;
-use log::{debug, warn};
+use tracing::{debug, warn};
 use mdbx_derive::{
     HasMDBXEnvironment, KeyObjectEncode, MDBXDatabase, MDBXTable, ZstdBcsObject, ZstdJSONObject,
     mdbx::{

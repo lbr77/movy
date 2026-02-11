@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 
 use libafl::{mutators::MutationResult, state::HasRand};
 use libafl_bolts::rands::Rand;
-use log::{debug, warn};
+use tracing::{debug, warn};
 use movy_types::{
     abi::MoveFunctionAbi,
     input::{FunctionIdent, MoveCall, MoveSequence, MoveSequenceCall, SequenceArgument},

@@ -2,11 +2,15 @@ use std::{ops::Deref, str::FromStr, sync::Arc};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
-use log::{debug, trace, warn};
+use tracing::{debug, trace, warn};
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
-use movy_sui::{compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit};
+use move_vm_runtime::move_vm::MoveVM;
+use movy_sui::{
+    cheats::all_cheates, compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit,
+};
 use movy_types::{error::MovyError, object::MoveOwner};
+use sui_move_natives_latest::all_natives;
 use sui_types::{
     TypeTag,
     base_types::{ObjectID, SuiAddress},
@@ -30,13 +34,17 @@ use crate::{
     tracer::NopTracer,
 };
 
+pub fn testing_proto() -> ProtocolConfig {
+    ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Mainnet)
+}
+
 #[derive(Clone)]
 pub struct SuiExecutor<T> {
     pub db: T,
     pub protocol_config: ProtocolConfig,
     pub metrics: Arc<LimitsMetrics>,
     pub registry: prometheus::Registry,
-    pub executor: Arc<dyn sui_execution::Executor + Send + Sync>,
+    pub movevm: Arc<MoveVM>,
 }
 
 pub struct ExecutionResults {
@@ -62,17 +70,23 @@ where
     T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
 {
     pub fn new(db: T) -> Result<Self, MovyError> {
-        let protocol_config: ProtocolConfig =
-            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Mainnet);
+        let protocol_config = testing_proto();
         let registry = prometheus::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
-        let executor = sui_execution::executor(&protocol_config, false)?;
+        let movevm = Arc::new(
+            MoveVM::new(
+                all_natives(false, &protocol_config)
+                    .into_iter()
+                    .chain(all_cheates().into_iter()),
+            )
+            .map_err(|e| eyre!("move vm err: {}", e))?,
+        );
         Ok(Self {
             db,
             protocol_config,
             metrics,
             registry,
-            executor,
+            movevm,
         })
     }
 
@@ -175,24 +189,27 @@ where
         };
         trace!("Tx digest is {}", tx_data.digest());
         let (store, gas_status, effects, _timing, result) =
-            self.executor.execute_transaction_to_effects(
+            sui_adapter_latest::execution_engine::execute_transaction_to_effects::<
+                sui_adapter_latest::execution_mode::Normal,
+            >(
                 &self.db,
-                &self.protocol_config,
-                self.metrics.clone(),
-                false,
-                Ok(()),
-                &epoch,
-                epoch_ms,
                 CheckedInputObjects::new_for_replay(objects.into()),
                 tx_data.gas_data().clone(),
                 gas,
                 tx_data.kind().clone(),
                 tx_data.sender(),
                 tx_data.digest(),
+                &self.movevm,
+                &epoch,
+                epoch_ms,
+                &self.protocol_config,
+                self.metrics.clone(),
+                false,
+                Ok(()),
                 &mut move_tracer,
             );
         drop(move_tracer);
-        log::debug!("Result is {:?}", &result);
+        tracing::debug!("Result is {:?}", &result);
         Ok(ExecutionTracedResults {
             results: ExecutionResults {
                 effects,
