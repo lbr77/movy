@@ -2,7 +2,6 @@ use std::{collections::BTreeSet, io::Write, path::Path};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
-use tracing::{debug, trace};
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Flavor;
 use move_package::{
@@ -17,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use sui_move_build::{BuildConfig, CompiledPackage, build_from_resolution_graph, implicit_deps};
 use sui_package_management::{PublishedAtError, system_package_versions::latest_system_packages};
 use sui_types::{base_types::ObjectID, digests::get_mainnet_chain_identifier};
+use tracing::{debug, trace};
 
 pub fn build_package_resolved(
     folder: &Path,
@@ -121,8 +121,7 @@ impl SuiCompiledPackage {
             published_dependencies: self.published_dependencies.clone(),
         };
 
-        let mut deps: BTreeSet<ObjectID> =
-            self.published_dependencies.clone().into_iter().collect();
+        let deps: BTreeSet<ObjectID> = self.published_dependencies.clone().into_iter().collect();
         for md in self.modules.iter() {
             let md = Self::mock_module(md);
             // deps.extend(
@@ -179,7 +178,7 @@ impl SuiCompiledPackage {
             })
             .map(|m| m.module.clone())
             .collect::<Vec<_>>();
-        if modules.len() == 0 {
+        if modules.is_empty() {
             return Err(eyre!(
                 "Compiling {} yields 0 modules for root {}",
                 folder.display(),

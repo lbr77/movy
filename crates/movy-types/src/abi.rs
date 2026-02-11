@@ -189,7 +189,7 @@ impl MoveStructAbi {
         }
         Some(MoveStructLayout::new(
             MoveStructTag {
-                address: self.module_id.module_address.clone(),
+                address: self.module_id.module_address,
                 module: self.module_id.module_name.clone(),
                 name: self.struct_name.clone(),
                 tys: vec![],
@@ -204,16 +204,13 @@ impl MoveStructAbi {
         let tys = handle
             .type_parameters
             .iter()
-            .map(|v| v.constraints.clone())
+            .map(|v| v.constraints)
             .collect_vec();
         let mut fields = vec![];
         for fd in def.fields().into_iter().flatten() {
             let ty = MoveAbiSignatureToken::from_sui_token_module(&fd.signature.0, &tys, module);
             let tyname = module.identifier_at(fd.name).to_string();
-            let field = MoveStructField {
-                name: tyname,
-                ty: ty,
-            };
+            let field = MoveStructField { name: tyname, ty };
             fields.push(field);
         }
 

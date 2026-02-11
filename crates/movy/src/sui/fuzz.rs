@@ -2,7 +2,6 @@ use std::{collections::BTreeMap, path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Args;
 use color_eyre::eyre::eyre;
-use tracing::debug;
 use movy_fuzz::{
     meta::{FuzzMetadata, TargetFilters},
     operations::sui_fuzz,
@@ -24,6 +23,7 @@ use movy_types::{
 };
 use serde::{Deserialize, Serialize};
 use sui_types::base_types::ObjectID;
+use tracing::debug;
 
 use crate::sui::{
     env::{FunctionSelector, FuzzTargetArgs, ModuleSelector, PackageSelector, SuiTargetArgs},

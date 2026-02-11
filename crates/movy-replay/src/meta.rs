@@ -7,11 +7,7 @@ use crate::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
     env::SuiTestingEnv,
 };
-use color_eyre::eyre::eyre;
-use move_core_types::{
-    annotated_value::{MoveDatatypeLayout, MoveStruct, MoveValue},
-    language_storage::StructTag,
-};
+use move_core_types::{annotated_value::MoveDatatypeLayout, language_storage::StructTag};
 use movy_analysis::type_graph::MoveTypeGraph;
 use movy_sui::database::cache::ObjectSuiStoreCommit;
 use movy_types::{
@@ -299,7 +295,7 @@ impl Metadata {
         }
 
         let mut structs_mapping = BTreeMap::new();
-        for (pkg_id, pkg) in testing_abis.iter() {
+        for (_pkg_id, pkg) in testing_abis.iter() {
             for md in pkg.modules.iter() {
                 for st in md.structs.iter() {
                     structs_mapping

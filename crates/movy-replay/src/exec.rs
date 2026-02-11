@@ -2,7 +2,6 @@ use std::{ops::Deref, str::FromStr, sync::Arc};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
-use tracing::{debug, trace, warn};
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use move_vm_runtime::move_vm::MoveVM;
@@ -28,6 +27,7 @@ use sui_types::{
         TransactionKind,
     },
 };
+use tracing::{debug, trace, warn};
 
 use crate::{
     db::{ObjectStoreInfo, ObjectStoreMintObject},

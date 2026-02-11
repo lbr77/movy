@@ -19,19 +19,17 @@ use movy_types::{
 use sui_types::{
     Identifier,
     base_types::{ObjectID, SequenceNumber},
-    committee::ProtocolVersion,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     move_package::MovePackage,
     object::{Data, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{BackingPackageStore, BackingStore, ObjectStore},
-    supported_protocol_versions::ProtocolConfig,
 };
 
 use crate::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
-    exec::{SuiExecutor, testing_proto},
+    exec::SuiExecutor,
     tracer::NopTracer,
 };
 
@@ -70,8 +68,11 @@ impl<
         tracing::info!("Installing movy to {}", movy.package_id);
         let (modules, deps) = movy.into_deployment();
         let movy_package = Object::new_package_from_data(
-            Data::Package(MovePackage::new_system(SequenceNumber::new(), &modules,
-            deps.into_iter())),
+            Data::Package(MovePackage::new_system(
+                SequenceNumber::new(),
+                &modules,
+                deps,
+            )),
             TransactionDigest::genesis_marker(),
         );
         self.db.commit_single_object(movy_package)?;
@@ -99,7 +100,7 @@ impl<
                 );
                 let std_onchain_version = self
                     .db
-                    .get_object(&out.package_id.into())
+                    .get_object(&out.package_id)
                     .ok_or_else(|| eyre!("{} not onchain?!", out.package_id))?
                     .version();
                 let (modules, dependencies) = out.into_deployment();

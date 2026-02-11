@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use movy_types::error::MovyError;
 
-use tracing::{debug, trace, warn};
 use move_binary_format::CompiledModule;
 use move_model::{
     ast::ModuleName,
@@ -17,6 +16,7 @@ use move_stackless_bytecode::{
     stackless_control_flow_graph::StacklessControlFlowGraph,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use tracing::{debug, trace, warn};
 
 /// Stackless bytecode for a single function inside a compiled module.
 pub struct FunctionInfo {

@@ -90,12 +90,11 @@ where
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(self
             .0
-            .event(event, stack, symbol_stack, current_function.clone(), state)?
+            .event(event, stack, symbol_stack, current_function, state)?
             .into_iter()
             .chain(
                 self.1
-                    .event(event, stack, symbol_stack, current_function, state)?
-                    .into_iter(),
+                    .event(event, stack, symbol_stack, current_function, state)?,
             )
             .collect())
     }
@@ -110,7 +109,7 @@ where
             .0
             .done_execution(db, state, effects)?
             .into_iter()
-            .chain(self.1.done_execution(db, state, effects)?.into_iter())
+            .chain(self.1.done_execution(db, state, effects)?)
             .collect())
     }
 }

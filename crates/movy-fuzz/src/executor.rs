@@ -7,7 +7,6 @@ use libafl::{
     state::{HasExecutions, HasRand},
 };
 use libafl_bolts::tuples::{Handle, MatchNameRef, RefIndexable};
-use tracing::trace;
 use movy_replay::{
     db::{ObjectStoreInfo, ObjectStoreMintObject},
     exec::{ExecutionTracedResults, SuiExecutor},
@@ -24,6 +23,7 @@ use sui_types::{
     execution_status::ExecutionStatus,
     storage::{BackingStore, ObjectStore},
 };
+use tracing::trace;
 
 use crate::{
     input::MoveInput,
@@ -154,7 +154,7 @@ where
             ExecutionStatus::Failure { command, .. } => (
                 // command index may be out of bound when meeting non-aborted error
                 if command.is_some_and(|c| c < input.sequence().commands.len()) {
-                    command.clone()
+                    *command
                 } else {
                     None
                 },

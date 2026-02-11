@@ -3,7 +3,6 @@ use std::{ops::Deref, str::FromStr, sync::Arc};
 use color_eyre::eyre::eyre;
 use cynic::{GraphQlResponse, Operation, QueryBuilder};
 use fastcrypto::encoding::Encoding;
-use tracing::warn;
 use movy_types::error::MovyError;
 use reqwest::header::USER_AGENT;
 use serde::de::DeserializeOwned;
@@ -15,6 +14,7 @@ use sui_types::{
     transaction::TransactionData,
 };
 use tokio::sync::Semaphore;
+use tracing::warn;
 
 #[cynic::schema("sui")]
 mod schema {

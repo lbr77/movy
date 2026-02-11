@@ -1,5 +1,4 @@
 use color_eyre::eyre::eyre;
-use tracing::{debug, trace, warn};
 use movy_types::error::MovyError;
 use sui_types::{
     base_types::ObjectID,
@@ -8,6 +7,7 @@ use sui_types::{
     object::Object,
     storage::{BackingPackageStore, PackageObject, ParentSync},
 };
+use tracing::{debug, trace, warn};
 
 use crate::{
     database::{DexForkedReplayStore, ForkedCheckpoint},

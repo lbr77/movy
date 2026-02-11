@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use tracing::{debug, warn};
 use movy_types::{
     abi::MoveFunctionAbi,
     input::{
         FunctionIdent, MoveCall, MoveSequence, MoveSequenceCall, MoveTypeTag, SequenceArgument,
     },
 };
+use tracing::{debug, warn};
 
 use crate::{
     meta::{FunctionHook, FuzzMetadata, HasFuzzMetadata},
@@ -105,14 +105,13 @@ fn append_hook_call<S>(
     let mut fixed_args: BTreeMap<u16, (SequenceArgument, MoveTypeTag)> = BTreeMap::new();
     let mut fixed_ty_args: BTreeMap<u16, MoveTypeTag> = BTreeMap::new();
     let param_offset = if ctx_arg.is_some() { 1 } else { 0 };
-    if let Some(ctx) = ctx_arg {
-        if let Some(param_ty) = hook_abi
+    if let Some(ctx) = ctx_arg
+        && let Some(param_ty) = hook_abi
             .parameters
-            .get(0)
+            .first()
             .and_then(|p| p.subst(&BTreeMap::new()))
-        {
-            fixed_args.insert(0, (ctx, param_ty));
-        }
+    {
+        fixed_args.insert(0, (ctx, param_ty));
     }
     if let Some((target_call, target_abi, _maybe_idx)) = target {
         // Hook must mirror the target function signature (plus optional context).
@@ -179,7 +178,7 @@ fn append_hook_call<S>(
                 .arguments
                 .get(i)
                 .cloned()
-                .unwrap_or_else(|| SequenceArgument::Input(0));
+                .unwrap_or(SequenceArgument::Input(0));
             fixed_args.insert((param_offset + i) as u16, (arg, hook_ty));
         }
     }

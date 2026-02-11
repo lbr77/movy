@@ -1,11 +1,11 @@
 use std::{cmp::Ordering, collections::BTreeMap, str::FromStr};
 
-use tracing::{debug, trace, warn};
 use move_binary_format::file_format::Bytecode;
 use move_core_types::{language_storage::TypeTag, u256::U256};
 use move_trace_format::format::{Effect, ExtraInstructionInformation, TraceEvent, TypeTagWithRefs};
 use move_vm_stack::Stack;
 use move_vm_types::values::{Reference, VMValueCast, Value};
+use tracing::{trace, warn};
 use z3::ast::{Ast, Bool, Int};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -25,7 +25,6 @@ use libafl::{
     state::StdState,
 };
 use libafl_bolts::tuples::tuple_list;
-use tracing::{info, warn};
 use movy_replay::db::{ObjectStoreCachedStore, ObjectStoreInfo};
 use movy_replay::env::SuiTestingEnv;
 use movy_replay::exec::SuiExecutor;
@@ -34,6 +33,7 @@ use movy_sui::database::cache::{CachedStore, ObjectSuiStoreCommit};
 use movy_types::error::MovyError;
 use sui_types::storage::BackingStore;
 use sui_types::storage::{BackingPackageStore, ObjectStore};
+use tracing::{info, warn};
 
 pub fn oracles<T, S, E>(
     typed_bug_abort: bool,

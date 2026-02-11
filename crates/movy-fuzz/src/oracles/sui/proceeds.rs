@@ -3,9 +3,9 @@ use std::{
     ops::Neg,
 };
 
-use tracing::debug;
 use move_trace_format::format::TraceEvent;
 use move_vm_stack::Stack;
+use tracing::debug;
 
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
 use movy_types::{

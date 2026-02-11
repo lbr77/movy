@@ -4,7 +4,6 @@ use color_eyre::eyre::eyre;
 use fastcrypto::hash::HashFunction;
 use fastcrypto::traits::Signer;
 use itertools::Itertools;
-use tracing::{debug, info};
 use movy_types::error::MovyError;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -22,6 +21,7 @@ use sui_rpc::{
         user_signature::Signature,
     },
 };
+use tracing::{debug, info};
 
 use sui_sdk::{SuiClient, SuiClientBuilder, rpc_types::SuiTransactionBlockResponseOptions};
 use sui_types::{

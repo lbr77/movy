@@ -6,9 +6,9 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
-use tracing::{debug, trace};
 use movy_replay::tracer::{concolic::ConcolicState, op::Log};
 use movy_types::input::{FunctionIdent, MoveSequenceCall, SequenceArgument};
+use tracing::{debug, trace};
 
 use crate::{
     flash::FlashProvider,

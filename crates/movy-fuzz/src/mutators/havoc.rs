@@ -5,13 +5,13 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
-use tracing::debug;
 use movy_replay::db::ObjectStoreInfo;
 use movy_types::input::{
     InputArgument, MoveCall, MoveSequenceCall, SequenceArgument, SuiObjectInputArgument,
 };
 use movy_types::object::MoveOwner as Owner;
 use sui_types::digests::TransactionDigest;
+use tracing::debug;
 
 use crate::{
     input::MoveInput,

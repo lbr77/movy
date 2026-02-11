@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, str::FromStr, sync::LazyLock};
+use std::{str::FromStr, sync::LazyLock};
 
 use move_core_types::account_address::AccountAddress;
 use move_vm_runtime::native_functions::NativeFunctionTable;

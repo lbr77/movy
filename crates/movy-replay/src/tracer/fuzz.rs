@@ -1,9 +1,8 @@
 use std::{borrow::Cow, collections::BTreeMap, marker::PhantomData};
 
-use color_eyre::eyre::{OptionExt, eyre};
+use color_eyre::eyre::eyre;
 use libafl::{executors::ExitKind, observers::StdMapObserver};
 use libafl_bolts::tuples::{Handle, MatchName, MatchNameRef};
-use tracing::{trace, warn};
 use move_binary_format::file_format::Bytecode;
 use move_trace_format::{
     format::{Effect, TraceEvent},
@@ -12,6 +11,7 @@ use move_trace_format::{
 use move_vm_stack::Stack;
 use move_vm_types::values::IntegerValue;
 use movy_types::{error::MovyError, input::FunctionIdent, oracle::OracleFinding};
+use tracing::{trace, warn};
 
 use crate::tracer::{
     concolic::ConcolicState,

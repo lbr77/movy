@@ -6,8 +6,8 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
-use tracing::debug;
 use movy_types::input::{MoveSequence, MoveSequenceCall, SequenceArgument};
+use tracing::debug;
 
 use crate::{
     r#const::{ADD_MOVECALL_PROB, INIT_FUNCTION_SCORE},
