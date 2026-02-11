@@ -145,7 +145,7 @@ impl MoveInput for MoveFuzzInput {
                 .entry(func.to_string())
                 .or_default();
             for cmp in cmps.iter() {
-                let tracing::CmpLog(cmp) = cmp else {
+                let Log::CmpLog(cmp) = cmp else {
                     continue;
                 };
                 if matches!(cmp.op, CmpOp::EQ | CmpOp::GE | CmpOp::LE) {

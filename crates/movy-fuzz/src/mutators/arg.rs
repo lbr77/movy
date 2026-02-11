@@ -141,7 +141,7 @@ where
     let mut cmp_constraints = target_function_logs
         .iter()
         .filter_map(|log| match log {
-            tracing::CmpLog(cmp) => cmp.constraint.clone(),
+            Log::CmpLog(cmp) => cmp.constraint.clone(),
             _ => None,
         })
         .collect::<Vec<_>>();
