@@ -85,9 +85,9 @@ sui-execution = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"
 shared-crypto = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 # sui-adapter-v2 = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 
-sui-rpc = { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2" }
-sui-sdk-types =  { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2" }
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "09f86974195ec85d8aae386b1909d341d3ccfe52"} # sui use git dependency =/
+sui-rpc = { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "aef7655b45dcf3747281456f4999542dc52f6af6" }
+sui-sdk-types =  { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "aef7655b45dcf3747281456f4999542dc52f6af6" }
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "d2e2d13be3e550745739144e2a090b9675e4ffcb"} # sui use git dependency =/
 
 # move-stackless-bytecode = {path = "../sui/external-crates/move/crates/move-stackless-bytecode"}
 # move-model = {path = "../sui/external-crates/move/crates/move-model"}
