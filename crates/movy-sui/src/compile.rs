@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, io::Write, path::Path};
 
-use color_eyre::eyre::{Report, eyre};
+use color_eyre::eyre::eyre;
 use itertools::Itertools;
 use log::{debug, trace};
 use move_binary_format::CompiledModule;
@@ -28,18 +28,23 @@ pub fn build_package_resolved(
     cfg.environment.name = "mainnet".to_string();
     trace!("Build config is {:?}", &cfg.config);
 
-    let package_paths = cfg
-        .config
-        .package_loader(folder, &cfg.environment)
-        .load_sync()
-        .map_err(Report::from)?
-        .packages()
-        .into_iter()
-        .map(|pkg| pkg.path().path().to_path_buf())
-        .collect::<Vec<_>>();
-
     let artifacts = cfg.build(folder)?;
-    Ok((artifacts, package_paths))
+    let mut package_paths = BTreeSet::new();
+    for unit in artifacts.package.all_compiled_units_with_source() {
+        let mut current = unit.source_path.parent();
+        while let Some(path) = current {
+            if path.join("Move.toml").exists() {
+                package_paths.insert(path.to_path_buf());
+                break;
+            }
+            current = path.parent();
+        }
+    }
+    if package_paths.is_empty() {
+        package_paths.insert(folder.to_path_buf());
+    }
+
+    Ok((artifacts, package_paths.into_iter().collect()))
 }
 
 mod compiled_module_serde {
