@@ -30,7 +30,7 @@ impl ModuleProvider for NoModuleProvider {
 
 pub trait TraceNotifier {
     fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError>;
-    fn handle_before_instruction(
+    fn notify(
         &mut self,
         _ctx: &TraceEvent,
         _extra: Option<&InstructionExtraInformation>,

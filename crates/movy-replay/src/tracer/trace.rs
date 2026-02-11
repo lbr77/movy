@@ -131,7 +131,7 @@ impl TraceState {
                 }
             }
             // Instructions
-            TraceEvent::Instruction { .. } => (),
+            _ => (),
         }
     }
 
