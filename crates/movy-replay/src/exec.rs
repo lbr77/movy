@@ -67,7 +67,12 @@ impl<R> Deref for ExecutionTracedResults<R> {
 
 impl<T> SuiExecutor<T>
 where
-    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
+    T: ObjectStore
+        + BackingStore
+        + ObjectSuiStoreCommit
+        + ObjectStoreMintObject
+        + ObjectStoreInfo
+        + Clone,
 {
     pub fn new(db: T) -> Result<Self, MovyError> {
         let protocol_config = testing_proto();

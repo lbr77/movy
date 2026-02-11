@@ -91,7 +91,12 @@ impl<T, OT, RT, I, S> HasObservers for SuiFuzzExecutor<T, OT, RT, I, S> {
 
 impl<EM, Z, T, OT, RT, I, S, E> Executor<EM, I, S, Z> for SuiFuzzExecutor<T, OT, RT, I, S>
 where
-    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
+    T: ObjectStore
+        + BackingStore
+        + ObjectSuiStoreCommit
+        + ObjectStoreMintObject
+        + ObjectStoreInfo
+        + Clone,
     OT: ObserversTuple<I, S>,
     RT: for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>,
     I: MoveInput,

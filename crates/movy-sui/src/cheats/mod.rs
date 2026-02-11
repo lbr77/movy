@@ -5,21 +5,7 @@ use move_vm_runtime::native_functions::NativeFunctionTable;
 use sui_types::Identifier;
 
 pub mod ctx;
-
-macro_rules! make_native {
-    ($addr:expr, $mod:literal, $func:literal, $native: expr) => {
-        (
-            $addr,
-            Identifier::new($mod).unwrap(),
-            Identifier::new($func).unwrap(),
-            Arc::new(
-                move |context, ty_args, args| -> PartialVMResult<NativeResult> {
-                    $native(context, ty_args, args)
-                },
-            ),
-        )
-    };
-}
+pub mod scenario;
 
 macro_rules! make_cheat {
     ($mod:literal, $func:literal, $native: expr) => {

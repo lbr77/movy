@@ -38,7 +38,12 @@ pub fn sui_plain_replay_seed<T>(
     trace: bool,
 ) -> Result<(), MovyError>
 where
-    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
+    T: ObjectStore
+        + BackingStore
+        + ObjectSuiStoreCommit
+        + ObjectStoreMintObject
+        + ObjectStoreInfo
+        + Clone,
 {
     let inner = env.into_inner();
     let executor = SuiExecutor::new(inner)?;
