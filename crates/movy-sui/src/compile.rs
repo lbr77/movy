@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, io::Write, path::Path};
 
-use color_eyre::eyre::eyre;
+use color_eyre::eyre::{Report, eyre};
 use itertools::Itertools;
 use log::{debug, trace};
 use move_binary_format::CompiledModule;
@@ -32,7 +32,7 @@ pub fn build_package_resolved(
         .config
         .package_loader(folder, &cfg.environment)
         .load_sync()
-        .map_err(anyhow::Error::from)?
+        .map_err(Report::from)?
         .packages()
         .into_iter()
         .map(|pkg| pkg.path().path().to_path_buf())
