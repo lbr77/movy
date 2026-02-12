@@ -219,7 +219,6 @@ where
                 // command index may be out of bound when meeting non-aborted error
                 if command.is_some_and(|c| c < input.sequence().commands.len()) {
                     *command
-                    *command
                 } else {
                     None
                 },
