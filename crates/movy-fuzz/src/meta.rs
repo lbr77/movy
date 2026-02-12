@@ -539,7 +539,9 @@ impl FuzzMetadata {
             + ObjectStore
             + ObjectSuiStoreCommit
             + BackingStore
-            + BackingPackageStore,
+            + BackingPackageStore
+            + Clone
+            + 'static,
     {
         let base = Metadata::from_env_filtered(
             env,

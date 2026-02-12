@@ -64,7 +64,7 @@ impl SuiStaticAnalysisArgs {
             gas_id.into(),
             100_000_000_000,
         )?;
-        let testing_env = SuiTestingEnv::new(env);
+        let testing_env = SuiTestingEnv::new(env.wrapped());
         testing_env.mock_testing_std()?;
         testing_env.install_movy()?;
         let (target_packages, _, _) = self

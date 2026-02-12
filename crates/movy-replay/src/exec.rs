@@ -5,10 +5,12 @@ use itertools::Itertools;
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use move_vm_runtime::move_vm::MoveVM;
-use movy_sui::{
-    cheats::all_cheates, compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit,
-};
+use movy_sui::{compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit};
 use movy_types::{error::MovyError, object::MoveOwner};
+use sui_adapter_latest::{
+    adapter::substitute_package_id,
+    execution_mode::{ExecutionMode, Normal},
+};
 use sui_move_natives_latest::all_natives;
 use sui_types::{
     TypeTag,
@@ -67,22 +69,15 @@ impl<R> Deref for ExecutionTracedResults<R> {
 
 impl<T> SuiExecutor<T>
 where
-    T: ObjectStore
-        + BackingStore
-        + ObjectSuiStoreCommit
-        + ObjectStoreMintObject
-        + ObjectStoreInfo
-        + Clone,
+    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
 {
-    pub fn new(db: T) -> Result<Self, MovyError> {
+    pub fn new_with_cheats_storage(db: T) -> Result<Self, MovyError> {
         let protocol_config = testing_proto();
         let registry = prometheus::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
         let movevm = Arc::new(
             MoveVM::new(
-                all_natives(false, &protocol_config)
-                    .into_iter()
-                    .chain(all_cheates().into_iter()),
+                all_natives(false, &protocol_config).into_iter(), // .chain(cheats.into_iter()),
             )
             .map_err(|e| eyre!("move vm err: {}", e))?,
         );
@@ -93,6 +88,9 @@ where
             registry,
             movevm,
         })
+    }
+    pub fn new(db: T) -> Result<Self, MovyError> {
+        Self::new_with_cheats_storage(db)
     }
 
     pub fn run_tx_trace<R: Tracer>(
@@ -193,10 +191,9 @@ where
             None
         };
         trace!("Tx digest is {}", tx_data.digest());
+
         let (store, gas_status, effects, _timing, result) =
-            sui_adapter_latest::execution_engine::execute_transaction_to_effects::<
-                sui_adapter_latest::execution_mode::Normal,
-            >(
+            sui_adapter_latest::execution_engine::execute_transaction_to_effects::<SuiFuzzMode>(
                 &self.db,
                 CheckedInputObjects::new_for_replay(objects.into()),
                 tx_data.gas_data().clone(),
@@ -277,29 +274,54 @@ where
         let (mut modules, dependencies) = project.into_deployment();
 
         debug!(
-            "Deploying package with original id {} and dependencies {:?}",
-            package_id, dependencies
+            "Deploying package with original id {} and dependencies {:?}, modules are [{}]",
+            package_id,
+            dependencies,
+            modules
+                .iter()
+                .map(|v| {
+                    let id = v.self_id();
+                    format!("{}:{}", id.address().to_string(), id.name().to_string())
+                })
+                .join(",")
         );
         // rebase to zero address as sui publish requires
-        for it in modules.iter_mut() {
-            let self_handle = it.self_handle().clone();
-            if let Some(address_mut) = it
-                .address_identifiers
-                .get_mut(self_handle.address.0 as usize)
-                && *address_mut != AccountAddress::ZERO
-            {
-                *address_mut = AccountAddress::ZERO;
-            }
+        // for it in modules.iter_mut() {
+        //     let self_handle = it.self_handle().clone();
+        //     if let Some(address_mut) = it
+        //         .address_identifiers
+        //         .get_mut(self_handle.address.0 as usize)
+        //         && *address_mut != AccountAddress::ZERO
+        //     {
+        //         *address_mut = AccountAddress::ZERO;
+        //     }
 
-            // TODO: Maybe unnecessary?
-            if package_id != ObjectID::ZERO {
-                for ident in it.address_identifiers.iter_mut() {
-                    if ObjectID::from(*ident) == package_id {
-                        *ident = AccountAddress::ZERO;
-                    }
-                }
+        //     // TODO: Maybe unnecessary?
+        //     if package_id != ObjectID::ZERO {
+        //         for ident in it.address_identifiers.iter_mut() {
+        //             if ObjectID::from(*ident) == package_id {
+        //                 *ident = AccountAddress::ZERO;
+        //             }
+        //         }
+        //     }
+        // }
+
+        if package_id == ObjectID::ZERO {
+            // derive id
+            let id = ObjectID::derive_id(digest, creation_num);
+            substitute_package_id(&mut modules, id)?;
+        } else {
+            // ensure the modules has the expected id
+            for it in modules.iter_mut() {
+                let self_handle = it.self_handle().clone();
+                let self_address_idx = self_handle.address;
+
+                let addrs = &mut it.address_identifiers;
+                let address_mut = addrs.get_mut(self_address_idx.0 as usize).unwrap();
+                *address_mut = package_id.into();
             }
         }
+
         let mut modules_bytes = vec![];
         for module in &modules {
             let mut buf = vec![];
@@ -343,5 +365,64 @@ where
         } else {
             Err(eyre!("fail to deploy").into())
         }
+    }
+}
+
+pub struct SuiFuzzMode;
+
+impl ExecutionMode for SuiFuzzMode {
+    type ArgumentUpdates = <Normal as ExecutionMode>::ArgumentUpdates;
+    type ExecutionResults = <Normal as ExecutionMode>::ExecutionResults;
+    const TRACK_EXECUTION: bool = Normal::TRACK_EXECUTION;
+
+    fn add_argument_update(
+        resolver: &impl sui_adapter_latest::type_resolver::TypeTagResolver,
+        acc: &mut Self::ArgumentUpdates,
+        arg: Argument,
+        new_value: &sui_adapter_latest::execution_value::Value,
+    ) -> Result<(), sui_types::error::ExecutionError> {
+        Normal::add_argument_update(resolver, acc, arg, new_value)
+    }
+    fn add_argument_update_v2(
+        acc: &mut Self::ArgumentUpdates,
+        arg: Argument,
+        bytes: Vec<u8>,
+        type_: TypeTag,
+    ) -> Result<(), sui_types::error::ExecutionError> {
+        Normal::add_argument_update_v2(acc, arg, bytes, type_)
+    }
+
+    fn allow_arbitrary_function_calls() -> bool {
+        Normal::allow_arbitrary_function_calls()
+    }
+    fn allow_arbitrary_values() -> bool {
+        Normal::allow_arbitrary_values()
+    }
+    fn empty_arguments() -> Self::ArgumentUpdates {
+        Normal::empty_arguments()
+    }
+    fn empty_results() -> Self::ExecutionResults {
+        Normal::empty_results()
+    }
+    fn finish_command(
+        resolver: &impl sui_adapter_latest::type_resolver::TypeTagResolver,
+        acc: &mut Self::ExecutionResults,
+        argument_updates: Self::ArgumentUpdates,
+        command_result: &[sui_adapter_latest::execution_value::Value],
+    ) -> Result<(), sui_types::error::ExecutionError> {
+        Normal::finish_command(resolver, acc, argument_updates, command_result)
+    }
+    fn finish_command_v2(
+        acc: &mut Self::ExecutionResults,
+        argument_updates: Vec<(Argument, Vec<u8>, TypeTag)>,
+        command_result: Vec<(Vec<u8>, TypeTag)>,
+    ) -> Result<(), sui_types::error::ExecutionError> {
+        Normal::finish_command_v2(acc, argument_updates, command_result)
+    }
+    fn packages_are_predefined() -> bool {
+        true
+    }
+    fn skip_conservation_checks() -> bool {
+        Normal::skip_conservation_checks()
     }
 }
