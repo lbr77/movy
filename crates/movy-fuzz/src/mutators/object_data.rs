@@ -1,7 +1,6 @@
 use itertools::Itertools;
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
-use log::{debug, trace, warn};
 use movy_replay::db::ObjectStoreInfo;
 use movy_types::object::MoveOwner as Owner;
 use movy_types::{
@@ -14,6 +13,7 @@ use movy_types::{
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use sui_types::digests::TransactionDigest;
+use tracing::{debug, trace, warn};
 
 use crate::{
     r#const::{INIT_FUNCTION_SCORE, SCORE_TICK},

@@ -32,7 +32,7 @@ impl MoveModuleBytecodeAnalysis {
             if let Some((_, fdef)) = module.find_function_def_by_name(fcall_function.as_str()) {
                 MoveFunctionAbi::from_module_def(fdef, module)
             } else {
-                log::warn!(
+                tracing::warn!(
                     "Internal fcall {}:{}:{} not found",
                     fcall_address,
                     fcall_module_name,
@@ -104,7 +104,7 @@ impl MoveModuleBytecodeAnalysis {
                     }
                 }
             } else {
-                log::debug!("Function {:?} has no code", &func);
+                tracing::debug!("Function {:?} has no code", &func);
             }
             calls.push((caller_func, caller_calls));
         }

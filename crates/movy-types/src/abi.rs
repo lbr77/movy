@@ -189,7 +189,7 @@ impl MoveStructAbi {
         }
         Some(MoveStructLayout::new(
             MoveStructTag {
-                address: self.module_id.module_address.clone(),
+                address: self.module_id.module_address,
                 module: self.module_id.module_name.clone(),
                 name: self.struct_name.clone(),
                 tys: vec![],
@@ -204,16 +204,13 @@ impl MoveStructAbi {
         let tys = handle
             .type_parameters
             .iter()
-            .map(|v| v.constraints.clone())
+            .map(|v| v.constraints)
             .collect_vec();
         let mut fields = vec![];
         for fd in def.fields().into_iter().flatten() {
             let ty = MoveAbiSignatureToken::from_sui_token_module(&fd.signature.0, &tys, module);
             let tyname = module.identifier_at(fd.name).to_string();
-            let field = MoveStructField {
-                name: tyname,
-                ty: ty,
-            };
+            let field = MoveStructField { name: tyname, ty };
             fields.push(field);
         }
 
@@ -410,7 +407,7 @@ impl MoveAbiSignatureToken {
             MoveAbiSignatureToken::TypeParameter(idx, _) => match typs.get(*idx as usize) {
                 Some(ty) => Some(ty.clone()),
                 None => {
-                    log::trace!("type parameter {} missing from typs", idx);
+                    tracing::trace!("type parameter {} missing from typs", idx);
                     None
                 }
             },
@@ -463,7 +460,7 @@ impl MoveAbiSignatureToken {
         tys: &Vec<MoveAbility>,
         module: &CompiledModule,
     ) -> Self {
-        log::trace!(
+        tracing::trace!(
             "from_sui_token_module, value is {:?}, tys is {:?}",
             value,
             tys

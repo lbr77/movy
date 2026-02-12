@@ -39,7 +39,7 @@ impl ModuleAnalysis {
         match defs.get(function.idx) {
             Some(def) => def.is_native(),
             None => {
-                log::debug!(
+                tracing::debug!(
                     "Skip function {}::{} (idx {}) - definition missing in compiled module",
                     self.qualified_module_name(),
                     function.name,
@@ -69,7 +69,7 @@ where
     let package_id = module_addr;
 
     let Some(object) = env.inner().get_object(&ObjectID::from(package_id)) else {
-        log::debug!(
+        tracing::debug!(
             "Object for dependency {}::{} (package {}) not found in backing store",
             module_id.address(),
             module_id.name(),
@@ -78,7 +78,7 @@ where
         return Ok(None);
     };
     let Some(package) = object.data.try_as_package() else {
-        log::debug!(
+        tracing::debug!(
             "Dependency {}::{} (package {}) is not a package object",
             module_id.address(),
             module_id.name(),
@@ -161,7 +161,7 @@ where
         match generate_stackless_bytecode_for_module(modules.iter(), &root_module) {
             Ok(m) => m,
             Err(e) => {
-                log::debug!("Failed to generate stackless bytecode: {e}");
+                tracing::debug!("Failed to generate stackless bytecode: {e}");
                 return Ok(None);
             }
         };

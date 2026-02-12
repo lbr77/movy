@@ -1,0 +1,19 @@
+[package]
+name = "movy-sui-stds"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+movy-sui = {workspace = true}
+bcs.workspace = true
+
+[build-dependencies]
+tempfile.workspace = true
+bcs.workspace = true
+serde.workspace = true
+movy-sui = {workspace = true}
+movy-types = {workspace = true}

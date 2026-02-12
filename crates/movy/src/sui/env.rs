@@ -79,23 +79,23 @@ impl SuiTargetArgs {
         let mut target_packages = Vec::new();
         let mut local_name_map = BTreeMap::new();
         for onchain in self.onchains.iter().flatten() {
-            log::info!("Deploying onchain address {} to env...", onchain);
+            tracing::info!("Deploying onchain address {} to env...", onchain);
             env.deploy_address(*onchain).await?;
             target_packages.push(*onchain);
         }
 
         for hist in self.histories.iter().flatten() {
             // TODO: This is unsound.
-            log::info!("Loading history objects for {} at {}", hist, checkpoint);
+            tracing::info!("Loading history objects for {} at {}", hist, checkpoint);
             env.load_history(*hist, checkpoint, rpc).await?;
         }
 
-        log::info!("Loading inner types...");
+        tracing::info!("Loading inner types...");
         env.load_inner_types().await?;
 
         let mut local_abis = vec![];
         for local in self.locals.iter().flatten() {
-            log::info!("Deploying the local package at {}", local.display());
+            tracing::info!("Deploying the local package at {}", local.display());
             let (target_package, testing_abi, abi, package_names) = env
                 .load_local(local, deployer, attacker, epoch, epoch_ms, gas.into())
                 .await?;
@@ -106,7 +106,7 @@ impl SuiTargetArgs {
             target_packages.push(target_package);
         }
 
-        log::info!("Reload inner types...");
+        tracing::info!("Reload inner types...");
         env.load_inner_types().await?;
 
         Ok((target_packages, local_abis, local_name_map))

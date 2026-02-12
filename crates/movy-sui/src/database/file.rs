@@ -1,7 +1,6 @@
 use std::u64;
 
 use color_eyre::eyre::eyre;
-use log::{debug, warn};
 use mdbx_derive::{
     HasMDBXEnvironment, KeyObjectEncode, MDBXDatabase, MDBXTable, ZstdBcsObject, ZstdJSONObject,
     mdbx::{
@@ -20,6 +19,7 @@ use sui_types::{
     storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync},
 };
 use tokio_stream::StreamExt;
+use tracing::{debug, warn};
 
 use crate::{
     database::cache::{CachedSnapshot, ObjectSuiStoreCommit},

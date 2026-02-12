@@ -8,7 +8,6 @@ use color_eyre::eyre::eyre;
 use itertools::Itertools;
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::{impl_serdeany, rands::Rand};
-use log::debug;
 use movy_replay::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
     env::SuiTestingEnv,
@@ -19,7 +18,7 @@ use movy_types::abi::MoveAbiSignatureToken;
 use movy_types::{
     abi::{
         MoveAbility, MoveFunctionAbi, MoveFunctionVisibility, MoveModuleAbi, MoveModuleId,
-        MovePackageAbi, MoveStructAbi,
+        MovePackageAbi,
     },
     error::MovyError,
     input::{FunctionIdent, MoveAddress, MoveTypeTag},
@@ -27,6 +26,7 @@ use movy_types::{
 use serde::{Deserialize, Serialize};
 use serde_json_any_key::any_key_map;
 use sui_types::storage::{BackingPackageStore, BackingStore, ObjectStore};
+use tracing::debug;
 
 use crate::{r#const::INIT_FUNCTION_SCORE, utils::SuperRand};
 

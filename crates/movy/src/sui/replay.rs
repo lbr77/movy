@@ -38,15 +38,15 @@ pub struct SuiReplaySeedArgs {
 
 impl SuiReplaySeedArgs {
     pub async fn run(self) -> Result<(), MovyError> {
-        log::info!("Loading the seed {}", self.seed.display());
+        tracing::info!("Loading the seed {}", self.seed.display());
         let seed: MoveFuzzInput = read_value(&self.seed)?;
-        log::info!("Loading the snapshot {}", self.env.display());
+        tracing::info!("Loading the snapshot {}", self.env.display());
         let env: CachedSnapshot = read_bcs_value(&self.env)?;
-        log::info!("Loading the fuzz metadata {}", self.meta.display());
+        tracing::info!("Loading the fuzz metadata {}", self.meta.display());
         let meta: FuzzMetadata = read_value(&self.meta)?;
         let gql = GraphQlDatabase::new_mystens(meta.checkpoint);
         let db = CachedStore::new(gql);
-        log::info!("Restoring the snapshot...");
+        tracing::info!("Restoring the snapshot...");
         db.restore_snapshot(env);
         let env = SuiTestingEnv::new(Arc::new(db));
         if self.fuzz && self.trace {

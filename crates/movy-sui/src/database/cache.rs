@@ -1,7 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, u64};
 
 use itertools::Itertools;
-use log::debug;
 use movy_types::error::MovyError;
 use serde::{Deserialize, Serialize};
 use sui_types::{
@@ -12,6 +11,7 @@ use sui_types::{
     object::Object,
     storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync},
 };
+use tracing::debug;
 
 use crate::database::{DexForkedReplayStore, ForkedCheckpoint};
 

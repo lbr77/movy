@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::Args;
 use color_eyre::eyre::eyre;
 use movy_replay::{exec::SuiExecutor, tracer::tree::TreeTracer};
@@ -34,7 +36,7 @@ impl SuiTraceArgs {
 
         let graphql_db = GraphQlDatabase::new_client(graphql.clone(), fork_ckpt);
         let cache_db = CachedStore::new(graphql_db);
-        let executor = SuiExecutor::new(cache_db)?;
+        let executor = SuiExecutor::new(Arc::new(cache_db))?;
 
         let mut tracer = TreeTracer::new();
         let results = executor.run_tx_trace(

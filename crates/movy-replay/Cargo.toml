@@ -11,7 +11,7 @@ repository.workspace = true
 anyhow = {workspace = true}
 auto_impl = {workspace = true}
 sui-types = {workspace = true}
-log = {workspace = true}
+tracing.workspace = true
 move-trace-format ={workspace = true}
 move-binary-format = {workspace = true}
 move-core-types = {workspace = true}
@@ -42,13 +42,10 @@ z3 = {workspace = true }
 tokio-stream = {workspace = true}
 tempfile = {workspace = true}
 sui-json-rpc-types = {workspace = true}
+sui-move-natives-latest = {workspace = true}
+sui-adapter-latest = {workspace = true}
 
 movy-analysis = {workspace = true}
 movy-types = {workspace = true}
 movy-sui = {workspace = true}
-
-[build-dependencies]
-tempfile.workspace = true
-serde_json.workspace = true
-movy-sui = {workspace = true}
-movy-types = {workspace = true}
+movy-sui-stds = {workspace = true}

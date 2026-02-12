@@ -27,6 +27,7 @@ use sui_types::{
     storage::{BackingStore, ObjectStore},
 };
 use tracing::trace;
+use tracing::trace;
 
 use crate::{
     input::MoveInput,
@@ -218,6 +219,7 @@ where
                 // command index may be out of bound when meeting non-aborted error
                 if command.is_some_and(|c| c < input.sequence().commands.len()) {
                     *command
+                    *command
                 } else {
                     None
                 },
@@ -240,8 +242,10 @@ where
         };
 
         if tracing::enabled!(tracing::Level::DEBUG) {
+        if tracing::enabled!(tracing::Level::DEBUG) {
             for ev in events.iter() {
                 if let Some((st, ev)) = state.fuzz_state().decode_sui_event(ev)? {
+                    tracing::debug!(
                     tracing::debug!(
                         "Event: {}({})",
                         st.to_canonical_string(true),
@@ -249,6 +253,7 @@ where
                             .unwrap_or_else(|e| format!("json err({}): {:?}", e, ev))
                     );
                 } else {
+                    tracing::debug!(
                     tracing::debug!(
                         "Event {} missing for decoding",
                         ev.type_.to_canonical_string(true)

@@ -150,7 +150,7 @@ impl<T: ObjectSuiStoreCommit> ObjectStoreMintObject for T {
         id: MoveAddress,
         value: u64,
     ) -> Result<(), MovyError> {
-        log::debug!("Minted coin ty {} value {} owner {}", coin, value, id);
+        tracing::debug!("Minted coin ty {} value {} owner {}", coin, value, id);
         let move_object =
             MoveObject::new_coin(coin.try_into()?, OBJECT_START_VERSION, id.into(), value);
         let coin = Object::new_move(
