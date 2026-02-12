@@ -28,7 +28,7 @@ impl ModuleProvider for NoModuleProvider {
     }
 }
 
-pub trait TraceNotifier {
+pub trait TraceNotifier: Tracer {
     fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError>;
     fn handle_before_instruction(
         &mut self,
@@ -37,12 +37,6 @@ pub trait TraceNotifier {
     ) -> Result<(), MovyError> {
         Ok(())
     }
-    fn notify(
-        &mut self,
-        event: &TraceEvent,
-        writer: &mut Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    );
 }
 
 pub struct NotifierTracer<N, P = NoModuleProvider>

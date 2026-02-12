@@ -336,7 +336,7 @@ where
     }
 }
 
-impl<'a, 's, S, O, T, OT> crate::event::TraceNotifier for SuiFuzzTracer<'a, 's, S, O, T, OT>
+impl<'a, 's, S, O, T, OT> Tracer for SuiFuzzTracer<'a, 's, S, O, T, OT>
 where
     O: SuiGeneralOracle<T, S>,
     OT: MatchNameRef + MatchName,
@@ -349,9 +349,17 @@ where
     ) {
         self.trace_state.notify(event, writer, None);
     }
+}
+
+impl<'a, 's, S, O, T, OT> crate::event::TraceNotifier for SuiFuzzTracer<'a, 's, S, O, T, OT>
+where
+    O: SuiGeneralOracle<T, S>,
+    OT: MatchNameRef + MatchName,
+{
     fn notify_event(&mut self, event: &TraceEvent) -> Result<(), MovyError> {
         SuiFuzzTracer::notify_event(self, event)
     }
+
     fn handle_before_instruction(
         &mut self,
         ctx: &TraceEvent,
