@@ -336,8 +336,8 @@ where
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(bcs::to_bytes(&admin)?)],
             commands: vec![
-                Command::Publish(modules_bytes, dependencies.clone()), // This produces an upgrade cap
-                Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(0)),
+                Command::Publish(modules_bytes, dependencies.clone()),
+                // Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(0)), // No upgrade cap when we fixed the address
             ],
         };
 

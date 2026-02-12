@@ -100,15 +100,15 @@ impl<
                         .map(|v| v.self_id().name().to_string())
                         .join(",")
                 );
-                let std_onchain_version = self
-                    .db
-                    .get_object(&out.package_id)
-                    .ok_or_else(|| eyre!("{} not onchain?!", out.package_id))?
-                    .version();
+                // let std_onchain_version = self
+                //     .db
+                //     .get_object(&out.package_id)
+                //     .ok_or_else(|| eyre!("{} not onchain?!", out.package_id))?
+                //     .version();
                 let (modules, dependencies) = out.into_deployment();
                 let move_package = Object::new_system_package(
                     &modules,
-                    std_onchain_version,
+                    SequenceNumber::from_u64(0xff),
                     dependencies,
                     TransactionDigest::genesis_marker(),
                 );
