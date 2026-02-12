@@ -43,6 +43,7 @@ sui-rpc = {workspace = true}
 sui-sdk-types = {workspace = true}
 shared-crypto = {workspace = true}
 sui-sdk = {workspace = true}
+sui-move-natives-latest = {workspace = true}
 
 movy-types = {workspace = true}
 

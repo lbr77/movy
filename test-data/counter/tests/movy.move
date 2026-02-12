@@ -1,20 +1,33 @@
 #[test_only]
 module counter::counter_tests;
 
-use sui::test_scenario::{Self as ts};
+use movy::cheats::{Self, CheatScenario};
 use counter::counter::{Self, Counter};
 use movy::context::Self;
 use movy::oracle::crash_because;
 use sui::bag::Self;
 use movy::log::log_keyed_u64;
-use movy::cheats;
+
 
 #[test]
 public fun movy_init(
     deployer: address,
     attacker: address
 ) {
-    let ctx = cheats::new_tx_ctx_from_hint(deployer, 1, 1, 1, 1);
+    let mut scenario = cheats::begin(deployer);
+    {
+        cheats::next_tx(&mut scenario, deployer);
+        counter::create(cheats::ctx(&mut scenario));
+    };
+
+    cheats::next_tx(&mut scenario, attacker);
+    {
+        // let mut counter_val = cheats::take_shared<Counter>();
+        // counter::increment(&mut counter_val, 0);
+        // cheats::return_shared(counter_val); // TODO
+    };
+
+    cheats::end(scenario);
 }
 
 // Helper

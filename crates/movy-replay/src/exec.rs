@@ -8,7 +8,7 @@ use move_vm_runtime::move_vm::MoveVM;
 use movy_sui::{
     cheats::{all_cheates, backend::CheatBackend},
     compile::SuiCompiledPackage,
-    database::cache::ObjectSuiStoreCommit,
+    database::cache::{CachedSnapshot, ObjectSuiStoreCommit},
 };
 use movy_types::{error::MovyError, object::MoveOwner};
 use sui_move_natives_latest::all_natives;
@@ -43,7 +43,7 @@ pub fn testing_proto() -> ProtocolConfig {
 #[derive(Clone)]
 pub struct SuiExecutor<T> {
     pub db: T,
-    pub cheat_backend: CheatBackend<T>,
+    pub cheat_backend: CheatBackend,
     pub protocol_config: ProtocolConfig,
     pub metrics: Arc<LimitsMetrics>,
     pub registry: prometheus::Registry,
@@ -70,19 +70,13 @@ impl<R> Deref for ExecutionTracedResults<R> {
 
 impl<T> SuiExecutor<T>
 where
-    T: ObjectStore
-        + BackingStore
-        + ObjectSuiStoreCommit
-        + ObjectStoreMintObject
-        + ObjectStoreInfo
-        + Clone
-        + 'static,
+    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
 {
-    pub fn new(db: T) -> Result<Self, MovyError> {
+    pub fn new_with_cheats_storage(db: T, storage: CachedSnapshot) -> Result<Self, MovyError> {
         let protocol_config = testing_proto();
         let registry = prometheus::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
-        let (cheat_backend, cheats) = all_cheates(db.clone());
+        let (cheat_backend, cheats) = all_cheates(storage);
         let movevm = Arc::new(
             MoveVM::new(
                 all_natives(false, &protocol_config)
@@ -99,6 +93,9 @@ where
             registry,
             movevm,
         })
+    }
+    pub fn new(db: T) -> Result<Self, MovyError> {
+        Self::new_with_cheats_storage(db, CachedSnapshot::default())
     }
 
     pub fn run_tx_trace<R: Tracer>(

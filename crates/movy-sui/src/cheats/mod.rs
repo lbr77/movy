@@ -4,7 +4,7 @@ use move_core_types::account_address::AccountAddress;
 use move_vm_runtime::native_functions::NativeFunctionTable;
 use sui_types::Identifier;
 
-use crate::cheats::backend::CheatBackend;
+use crate::{cheats::backend::CheatBackend, database::cache::CachedSnapshot};
 
 pub mod backend;
 pub mod ctx;
@@ -55,11 +55,8 @@ pub fn cheat_address() -> &'static AccountAddress {
     &CHEAT
 }
 
-pub fn all_cheates<T>(db: T) -> (CheatBackend<T>, NativeFunctionTable)
-where
-    T: 'static,
-{
-    let backend = CheatBackend::new(db);
+pub fn all_cheates(storage: CachedSnapshot) -> (CheatBackend, NativeFunctionTable) {
+    let backend = CheatBackend::new(storage);
     (
         backend.clone(),
         vec![
@@ -67,6 +64,12 @@ where
                 "cheats",
                 "new_tx_context",
                 super::cheats::ctx::new_tx_context
+            ),
+            make_backend_cheat!(
+                backend,
+                "cheats",
+                "share_object_impl",
+                super::cheats::scenario::share_object_impl
             ),
             make_backend_cheat!(
                 backend,

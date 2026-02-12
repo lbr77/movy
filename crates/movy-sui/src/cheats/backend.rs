@@ -1,13 +1,43 @@
-use std::{cell::UnsafeCell, sync::Arc};
+use std::{
+    cell::UnsafeCell,
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
+use sui_types::{
+    TypeTag,
+    base_types::{MoveObjectType, ObjectID},
+};
+
+use crate::database::cache::CachedSnapshot;
 
 // CheatBackend is a global backend that a Move VM globally holds
-pub struct CheatBackendInner<T> {
-    pub db: T,
+pub struct CheatBackendInner {
+    pub storage: CachedSnapshot,
+    pub tys: BTreeMap<MoveObjectType, BTreeSet<ObjectID>>,
+    pub latest_objects_by_types: BTreeMap<MoveObjectType, ObjectID>,
+    pub taken: BTreeSet<ObjectID>,
 }
 
-impl<T> CheatBackendInner<T> {
-    pub fn new(db: T) -> Self {
-        Self { db }
+impl CheatBackendInner {
+    pub fn new(storage: CachedSnapshot) -> Self {
+        let mut tys: BTreeMap<MoveObjectType, BTreeSet<ObjectID>> = BTreeMap::new();
+
+        for (id, mp) in storage.objects.iter() {
+            for (_, obj) in mp.iter() {
+                if let Some(obj) = obj {
+                    if let Some(ty) = obj.type_() {
+                        tys.entry(ty.clone()).or_default().insert(*id);
+                    }
+                }
+            }
+        }
+        Self {
+            storage,
+            tys,
+            latest_objects_by_types: BTreeMap::new(),
+            taken: BTreeSet::new(),
+        }
     }
 
     // Must be called before every ptb execution
@@ -18,11 +48,11 @@ impl<T> CheatBackendInner<T> {
 
 // Tight wrapper of CheatBackendInner to satisfy the contract of Sui natives
 // Note it is ub to call cheat backend concurrently.
-pub struct CheatBackend<T> {
-    inner: Arc<UnsafeCell<CheatBackendInner<T>>>,
+pub struct CheatBackend {
+    inner: Arc<UnsafeCell<CheatBackendInner>>,
 }
 
-impl<T> Clone for CheatBackend<T> {
+impl Clone for CheatBackend {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -31,22 +61,22 @@ impl<T> Clone for CheatBackend<T> {
 }
 
 // SAFETY: We guarantee single-threaded access
-unsafe impl<T> Send for CheatBackend<T> {}
-unsafe impl<T> Sync for CheatBackend<T> {}
+unsafe impl Send for CheatBackend {}
+unsafe impl Sync for CheatBackend {}
 
-impl<T> CheatBackend<T> {
-    pub fn new(db: T) -> Self {
+impl CheatBackend {
+    pub fn new(storage: CachedSnapshot) -> Self {
         Self {
-            inner: Arc::new(UnsafeCell::new(CheatBackendInner::new(db))),
+            inner: Arc::new(UnsafeCell::new(CheatBackendInner::new(storage))),
         }
     }
 
-    pub fn inner(&self) -> &CheatBackendInner<T> {
+    pub fn inner(&self) -> &CheatBackendInner {
         // SAFETY: No concurrent access exists by design.
         unsafe { &*self.inner.get() }
     }
 
-    pub fn inner_mut(&self) -> &mut CheatBackendInner<T> {
+    pub fn inner_mut(&self) -> &mut CheatBackendInner {
         // SAFETY: No concurrent access exists by design.
         unsafe { &mut *self.inner.get() }
     }
