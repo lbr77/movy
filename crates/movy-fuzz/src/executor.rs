@@ -7,7 +7,6 @@ use libafl::{
     state::{HasExecutions, HasRand},
 };
 use libafl_bolts::tuples::{Handle, MatchNameRef, RefIndexable};
-use log::trace;
 use movy_replay::{
     db::{ObjectStoreInfo, ObjectStoreMintObject},
     event::{ModuleProvider, NotifierTracer},
@@ -27,6 +26,7 @@ use sui_types::{
     execution_status::ExecutionStatus,
     storage::{BackingStore, ObjectStore},
 };
+use log::trace;
 
 use crate::{
     input::MoveInput,
@@ -139,7 +139,12 @@ impl<T, OT, RT, I, S> HasObservers for SuiFuzzExecutor<T, OT, RT, I, S> {
 
 impl<EM, Z, T, OT, RT, I, S, E> Executor<EM, I, S, Z> for SuiFuzzExecutor<T, OT, RT, I, S>
 where
-    T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
+    T: ObjectStore
+        + BackingStore
+        + ObjectSuiStoreCommit
+        + ObjectStoreMintObject
+        + ObjectStoreInfo
+        + Clone,
     E: ObjectStore,
     OT: ObserversTuple<I, S>,
     RT: for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>,
@@ -212,7 +217,7 @@ where
             ExecutionStatus::Failure { command, .. } => (
                 // command index may be out of bound when meeting non-aborted error
                 if command.is_some_and(|c| c < input.sequence().commands.len()) {
-                    command.clone()
+                    *command
                 } else {
                     None
                 },

@@ -2,13 +2,13 @@ use std::{cmp::Ordering, collections::BTreeMap, str::FromStr};
 
 use crate::event::InstructionExtraInformation;
 use crate::tracer::trace::TraceState;
-use log::{trace, warn};
 use move_binary_format::file_format::Bytecode;
 use move_core_types::{language_storage::TypeTag, u256::U256};
 use move_trace_format::{
     format::{Effect, TraceEvent, TraceValue, TypeTagWithRefs},
     value::SerializableMoveValue,
 };
+use log::{trace, warn};
 use z3::ast::{Ast, Bool, Int};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

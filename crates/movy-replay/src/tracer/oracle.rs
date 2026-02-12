@@ -112,7 +112,7 @@ where
             .0
             .done_execution(db, state, effects)?
             .into_iter()
-            .chain(self.1.done_execution(db, state, effects)?.into_iter())
+            .chain(self.1.done_execution(db, state, effects)?)
             .collect())
     }
 }

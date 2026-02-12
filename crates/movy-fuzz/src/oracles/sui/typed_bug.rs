@@ -1,5 +1,5 @@
+use move_trace_format::format::TraceEvent;
 use log::{debug, trace};
-use move_trace_format::{format::TraceEvent};
 
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};
@@ -17,15 +17,9 @@ use crate::{
 
 const TYPED_BUG_ABORT_CODE: u64 = 19260817;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TypedBugOracle {
     pub use_abort: bool,
-}
-
-impl Default for TypedBugOracle {
-    fn default() -> Self {
-        Self { use_abort: false }
-    }
 }
 
 impl TypedBugOracle {

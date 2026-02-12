@@ -3,8 +3,8 @@ use std::{
     ops::Neg,
 };
 
+use move_trace_format::format::TraceEvent;
 use log::debug;
-use move_trace_format::{format::TraceEvent};
 
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::{

@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
-use log::warn;
 use move_trace_format::{
     format::{Frame, TraceEvent, TraceValue},
     interface::Tracer,
 };
+use log::warn;
 
 #[derive(Debug, Clone)]
 pub struct FrameTraced {
