@@ -96,7 +96,8 @@ where
         + ObjectSuiStoreCommit
         + ObjectStoreMintObject
         + ObjectStoreInfo
-        + Clone,
+        + Clone
+        + 'static,
     OT: ObserversTuple<I, S>,
     RT: for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>,
     I: MoveInput,

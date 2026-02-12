@@ -200,7 +200,9 @@ impl Metadata {
             + ObjectStore
             + ObjectSuiStoreCommit
             + BackingStore
-            + BackingPackageStore,
+            + BackingPackageStore
+            + Clone
+            + 'static,
     {
         let testing_abis = env.export_abi().await?;
         let mut abis = testing_abis.clone();
@@ -330,7 +332,10 @@ impl Metadata {
             + ObjectStore
             + ObjectSuiStoreCommit
             + BackingStore
-            + BackingPackageStore,
+            + BackingPackageStore
+            + Clone
+            + Send
+            + 'static,
     {
         Self::from_env_filtered(env, local_abis, None, None).await
     }

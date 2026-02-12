@@ -74,7 +74,9 @@ impl SuiTargetArgs {
             + ObjectStore
             + ObjectSuiStoreCommit
             + BackingStore
-            + BackingPackageStore,
+            + BackingPackageStore
+            + Clone
+            + 'static,
     {
         let mut target_packages = Vec::new();
         let mut local_name_map = BTreeMap::new();

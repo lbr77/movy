@@ -200,7 +200,7 @@ impl SuiFuzzArgs {
             gas_id.into(),
             100_000_000_000,
         )?;
-        let testing_env = SuiTestingEnv::new(env);
+        let testing_env = SuiTestingEnv::new(env.wrapped());
         testing_env.mock_testing_std()?;
         testing_env.install_movy()?;
 
@@ -280,9 +280,11 @@ impl SuiFuzzArgs {
         may_save_json_value(&self.output, "fuzz_meta.json", &meta)?;
         may_save_bytes(&self.output, "env.bin", &testing_env.inner().dump().await?)?;
 
+        // Arc<T> is send only if T is Sync while RefCell is not.
+        let inner = testing_env.into_inner();
+        let inner = Arc::try_unwrap(inner).unwrap();
         tokio::task::spawn_blocking(move || {
-            let inner = testing_env.into_inner();
-            let env = SuiTestingEnv::new(Arc::new(inner));
+            let env = SuiTestingEnv::new(inner.wrapped());
             sui_fuzz::fuzz(
                 meta,
                 env,

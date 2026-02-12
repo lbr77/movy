@@ -5,7 +5,7 @@ use sui::tx_context::TxContext;
 const TX_HASH_LENGTH: u64 = 32;
 
 /// A cheat scenario for mocking a multi-transaction Sui execution
-public struct CheatScenario has drop {
+public struct CheatScenario {
     txn_number: u64,
     ctx: TxContext,
 }
@@ -105,21 +105,21 @@ native fun new_tx_context(
     ids_created: u64
 ): TxContext;
 
-native fun objects_by_type<T: key>(): vector<ID>;
+// native fun objects_by_type<T: key>(): vector<ID>;
 
 native fun take_by_id<T: key>(id: ID): T;
 
 // Forward to sui std native call
-native fun share_object_impl<T: key>(obj: T);
+// native fun share_object_impl<T: key>(obj: T);
 
-native fun freeze_object_impl<T: key>(obj: T);
+// native fun freeze_object_impl<T: key>(obj: T);
 
 native fun end_transaction();
 
-public fun return_shared<T: key>(t: T) {
-    share_object_impl(t)
-}
+// public fun return_shared<T: key>(t: T) {
+//     share_object_impl(t)
+// }
 
-public fun return_immutable<T: key>(t: T) {
-    freeze_object_impl(t)
-}
+// public fun return_immutable<T: key>(t: T) {
+//     freeze_object_impl(t)
+// }

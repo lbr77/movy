@@ -43,7 +43,8 @@ where
         + ObjectSuiStoreCommit
         + ObjectStoreMintObject
         + ObjectStoreInfo
-        + Clone,
+        + Clone
+        + 'static,
 {
     let inner = env.into_inner();
     let executor = SuiExecutor::new(inner)?;

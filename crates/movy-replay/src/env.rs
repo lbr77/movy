@@ -56,7 +56,9 @@ impl<
         + ObjectStore
         + ObjectSuiStoreCommit
         + BackingStore
-        + BackingPackageStore,
+        + BackingPackageStore
+        + Clone
+        + 'static,
 > SuiTestingEnv<T>
 {
     pub fn new(db: T) -> Self {
@@ -149,7 +151,7 @@ impl<
                 .map(|v| v.self_id().name().to_string())
                 .join(", ")
         );
-        let mut executor = SuiExecutor::new(&self.db)?;
+        let mut executor = SuiExecutor::new(self.db.clone())?;
         let address =
             executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?;
 

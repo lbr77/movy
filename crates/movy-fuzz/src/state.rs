@@ -45,7 +45,9 @@ where
         + ObjectStore
         + ObjectSuiStoreCommit
         + BackingStore
-        + BackingPackageStore,
+        + BackingPackageStore
+        + Clone
+        + 'static,
 {
     fn default() -> Self {
         Self {
@@ -63,7 +65,9 @@ where
         + ObjectStore
         + ObjectSuiStoreCommit
         + BackingStore
-        + BackingPackageStore,
+        + BackingPackageStore
+        + Clone
+        + 'static,
 {
     fn clone(&self) -> Self {
         Self {
@@ -114,7 +118,9 @@ where
         + ObjectStore
         + ObjectSuiStoreCommit
         + BackingStore
-        + BackingPackageStore,
+        + BackingPackageStore
+        + Clone
+        + 'static,
 {
     pub fn new(state: S, fuzz_env: SuiTestingEnv<T>) -> Self {
         Self {

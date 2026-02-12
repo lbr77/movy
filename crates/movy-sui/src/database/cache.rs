@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeMap, u64};
+use std::{cell::RefCell, collections::BTreeMap, sync::Arc, u64};
 
 use itertools::Itertools;
 use movy_types::error::MovyError;
@@ -101,6 +101,12 @@ pub struct CachedStore<T> {
 }
 
 impl<T> CachedStore<T> {
+    pub fn wrapped(self) -> Arc<Self> {
+        Arc::new(self)
+    }
+    pub fn reset(&self) -> CachedSnapshot {
+        std::mem::take(&mut self.inner.borrow_mut())
+    }
     pub fn dump_snapshot(&self) -> CachedSnapshot {
         self.inner.borrow().clone()
     }

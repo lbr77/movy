@@ -6,7 +6,9 @@ use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use move_vm_runtime::move_vm::MoveVM;
 use movy_sui::{
-    cheats::all_cheates, compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit,
+    cheats::{all_cheates, backend::CheatBackend},
+    compile::SuiCompiledPackage,
+    database::cache::ObjectSuiStoreCommit,
 };
 use movy_types::{error::MovyError, object::MoveOwner};
 use sui_move_natives_latest::all_natives;
@@ -41,6 +43,7 @@ pub fn testing_proto() -> ProtocolConfig {
 #[derive(Clone)]
 pub struct SuiExecutor<T> {
     pub db: T,
+    pub cheat_backend: CheatBackend<T>,
     pub protocol_config: ProtocolConfig,
     pub metrics: Arc<LimitsMetrics>,
     pub registry: prometheus::Registry,
@@ -72,22 +75,25 @@ where
         + ObjectSuiStoreCommit
         + ObjectStoreMintObject
         + ObjectStoreInfo
-        + Clone,
+        + Clone
+        + 'static,
 {
     pub fn new(db: T) -> Result<Self, MovyError> {
         let protocol_config = testing_proto();
         let registry = prometheus::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
+        let (cheat_backend, cheats) = all_cheates(db.clone());
         let movevm = Arc::new(
             MoveVM::new(
                 all_natives(false, &protocol_config)
                     .into_iter()
-                    .chain(all_cheates().into_iter()),
+                    .chain(cheats.into_iter()),
             )
             .map_err(|e| eyre!("move vm err: {}", e))?,
         );
         Ok(Self {
             db,
+            cheat_backend,
             protocol_config,
             metrics,
             registry,
@@ -193,6 +199,7 @@ where
             None
         };
         trace!("Tx digest is {}", tx_data.digest());
+        self.cheat_backend.inner_mut().reset();
         let (store, gas_status, effects, _timing, result) =
             sui_adapter_latest::execution_engine::execute_transaction_to_effects::<
                 sui_adapter_latest::execution_mode::Normal,
