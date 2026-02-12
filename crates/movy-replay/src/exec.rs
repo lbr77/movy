@@ -13,21 +13,11 @@ use sui_adapter_latest::{
 };
 use sui_move_natives_latest::all_natives;
 use sui_types::{
-    TypeTag,
-    base_types::{ObjectID, SuiAddress},
-    committee::ProtocolVersion,
-    effects::{TransactionEffects, TransactionEffectsAPI},
-    gas::SuiGasStatus,
-    inner_temporary_store::InnerTemporaryStore,
-    metrics::LimitsMetrics,
-    object::Owner,
-    storage::{BackingStore, ObjectStore, WriteKind},
-    supported_protocol_versions::{Chain, ProtocolConfig},
-    transaction::{
+    TypeTag, base_types::{ObjectID, SuiAddress}, committee::ProtocolVersion, digests::TransactionDigest, effects::{TransactionEffects, TransactionEffectsAPI}, gas::SuiGasStatus, inner_temporary_store::InnerTemporaryStore, metrics::LimitsMetrics, object::Owner, storage::{BackingStore, ObjectStore, WriteKind}, supported_protocol_versions::{Chain, ProtocolConfig}, transaction::{
         Argument, CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult,
         ObjectReadResultKind, ProgrammableTransaction, TransactionData, TransactionDataAPI,
         TransactionKind,
-    },
+    }
 };
 use tracing::{debug, trace, warn};
 
@@ -310,7 +300,7 @@ where
 
         if package_id == ObjectID::ZERO {
             // derive id
-            let id = ObjectID::derive_id(digest, self.deploy_ids);
+            let id = ObjectID::derive_id(TransactionDigest::genesis_marker(), self.deploy_ids);
             self.deploy_ids += 1;
             substitute_package_id(&mut modules, id)?;
         } else {
