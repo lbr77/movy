@@ -27,7 +27,6 @@ use sui_types::{
     storage::{BackingStore, ObjectStore},
 };
 use tracing::trace;
-use tracing::trace;
 
 use crate::{
     input::MoveInput,
