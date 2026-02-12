@@ -1,6 +1,7 @@
 use std::{ops::Deref, str::FromStr, sync::Arc};
 
 use color_eyre::eyre::eyre;
+use itertools::Itertools;
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use move_vm_runtime::move_vm::MoveVM;
@@ -273,8 +274,16 @@ where
         let (mut modules, dependencies) = project.into_deployment();
 
         debug!(
-            "Deploying package with original id {} and dependencies {:?}",
-            package_id, dependencies
+            "Deploying package with original id {} and dependencies {:?}, modules are [{}]",
+            package_id,
+            dependencies,
+            modules
+                .iter()
+                .map(|v| {
+                    let id = v.self_id();
+                    format!("{}:{}", id.address().to_string(), id.name().to_string())
+                })
+                .join(",")
         );
         // rebase to zero address as sui publish requires
         // for it in modules.iter_mut() {
