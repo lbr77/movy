@@ -4,10 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use sui_types::{
-    TypeTag,
-    base_types::{MoveObjectType, ObjectID},
-};
+use sui_types::base_types::{MoveObjectType, ObjectID};
 
 use crate::database::cache::CachedSnapshot;
 
@@ -42,8 +39,6 @@ impl CheatBackendInner {
 
     // Must be called before every ptb execution
     pub fn reset(&mut self) {}
-
-    pub fn end_transaction(&mut self) {}
 }
 
 // Tight wrapper of CheatBackendInner to satisfy the contract of Sui natives
