@@ -1,10 +1,4 @@
-use std::{
-    cell::UnsafeCell,
-    ops::{Deref, DerefMut},
-    sync::{Arc, Mutex},
-};
-
-use crate::database::cache::{CachedSnapshot, CachedStore};
+use std::{cell::UnsafeCell, sync::Arc};
 
 // CheatBackend is a global backend that a Move VM globally holds
 pub struct CheatBackendInner<T> {
@@ -13,7 +7,7 @@ pub struct CheatBackendInner<T> {
 
 impl<T> CheatBackendInner<T> {
     pub fn new(db: T) -> Self {
-        Self { db: db }
+        Self { db }
     }
 
     // Must be called before every ptb execution

@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    str::FromStr,
-    sync::{Arc, LazyLock, Mutex},
-};
+use std::{str::FromStr, sync::LazyLock};
 
 use move_core_types::account_address::AccountAddress;
 use move_vm_runtime::native_functions::NativeFunctionTable;
