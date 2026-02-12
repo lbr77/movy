@@ -6,6 +6,7 @@ use std::{
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
+use move_binary_format::CompiledModule;
 use movy_sui::{
     compile::SuiCompiledPackage,
     database::cache::ObjectSuiStoreCommit,
@@ -35,6 +36,30 @@ use crate::{
 
 pub struct SuiTestingEnv<T> {
     db: T,
+}
+
+fn record_zero_address_modules(
+    module_addr_map: &mut BTreeMap<String, ObjectID>,
+    modules: &[CompiledModule],
+    package_addr: ObjectID,
+) -> Result<(), MovyError> {
+    for module in modules.iter() {
+        let name = module.name().to_string();
+        if let Some(prev) = module_addr_map.get(&name).copied() {
+            if prev != package_addr {
+                tracing::debug!(
+                    "duplicate module name {} mapped to both {} and {}, keep {}",
+                    name,
+                    prev,
+                    package_addr,
+                    prev
+                );
+            }
+            continue;
+        }
+        module_addr_map.insert(name, package_addr);
+    }
+    Ok(())
 }
 
 impl<T> SuiTestingEnv<T> {
@@ -137,12 +162,49 @@ impl<
         gas: ObjectID,
         trace_movy_init: bool,
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
-        tracing::info!("Compiling {} with non-test mode...", path.display());
-        let abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
-        let mut non_test_abi = abi_result.abi()?;
         tracing::info!("Compiling {} with test mode...", path.display());
-        let compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        let mut compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        compiled_result.ensure_immediate_deps();
+        let root_package_name = compiled_result.package_name.clone();
         let package_names = compiled_result.package_names.clone();
+        let mut non_test_abi = compiled_result.abi()?;
+        let mut executor = SuiExecutor::new(self.db.clone())?;
+
+        // Redeploy all local dependencies in dependency-first order before root package deploy.
+        // `unpublished_dep_order` includes the reversed topological order from compile phase.
+        let mut zero_module_addr_map: BTreeMap<String, ObjectID> = BTreeMap::new();
+        for dep_name in compiled_result.unpublished_dep_order().iter() {
+            let Some(modules) = compiled_result.unpublished_dep_modules().get(dep_name) else {
+                return Err(eyre!("missing modules for dependency {}", dep_name).into());
+            };
+            if modules.is_empty() {
+                return Err(eyre!("empty modules for dependency {}", dep_name).into());
+            }
+
+            let dep_self_addr = ObjectID::from(*modules[0].address());
+            let mut dep_pkg = SuiCompiledPackage::new_unpublished(dep_name.clone(), modules.clone());
+            if dep_self_addr == ObjectID::ZERO && !zero_module_addr_map.is_empty() {
+                dep_pkg.rewrite_deps_by_module_name(&zero_module_addr_map)?;
+            }
+            dep_pkg.ensure_immediate_deps();
+            let dep_pkg = dep_pkg.movy_mock()?;
+            let dep_address = if dep_self_addr == ObjectID::ZERO {
+                executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, dep_pkg)?
+            } else {
+                executor.force_deploy_contract_at(dep_self_addr, dep_pkg)?
+            };
+            tracing::info!("publishing {} at {}", dep_name, dep_address);
+
+            // Record module -> package mapping for all deployed dependencies so later packages
+            // can rewrite zero-address module handles to concrete on-chain package IDs.
+            record_zero_address_modules(&mut zero_module_addr_map, modules, dep_address)?;
+        }
+
+        if !zero_module_addr_map.is_empty() {
+            compiled_result.rewrite_deps_by_module_name(&zero_module_addr_map)?;
+        }
+        compiled_result.ensure_immediate_deps();
+
         let compiled_result = compiled_result.movy_mock()?;
         tracing::debug!(
             "test modules are {}",
@@ -152,9 +214,9 @@ impl<
                 .map(|v| v.self_id().name().to_string())
                 .join(", ")
         );
-        let mut executor = SuiExecutor::new(self.db.clone())?;
         let address =
             executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?;
+        tracing::info!("publishing {} at {}", root_package_name, address);
 
         // In search of any deploy functions
         let mut abi = self.db.get_package_info(address.into())?.unwrap();

@@ -1,9 +1,17 @@
-use std::{collections::BTreeSet, io::Write, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Write,
+    path::Path,
+};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
-use move_binary_format::CompiledModule;
+use move_binary_format::{
+    CompiledModule,
+    file_format::{AddressIdentifierIndex, ModuleHandleIndex},
+};
 use move_compiler::editions::Flavor;
+use move_core_types::account_address::AccountAddress;
 use move_package::{
     resolution::resolution_graph::ResolvedGraph, source_package::layout::SourcePackageLayout,
 };
@@ -52,11 +60,54 @@ pub struct SuiCompiledPackage {
     modules: Vec<CompiledModule>,
     dependencies: Vec<ObjectID>,
     published_dependencies: Vec<ObjectID>,
+    #[serde(default)]
+    unpublished_dep_modules: BTreeMap<String, Vec<CompiledModule>>,
+    #[serde(default)]
+    unpublished_dep_order: Vec<String>,
 }
 
 impl SuiCompiledPackage {
     pub fn all_modules_iter(&self) -> impl Iterator<Item = &CompiledModule> {
         self.modules.iter()
+    }
+    pub fn dependencies(&self) -> &[ObjectID] {
+        &self.dependencies
+    }
+    pub fn unpublished_dep_order(&self) -> &[String] {
+        &self.unpublished_dep_order
+    }
+    pub fn unpublished_dep_modules(&self) -> &BTreeMap<String, Vec<CompiledModule>> {
+        &self.unpublished_dep_modules
+    }
+    pub fn new_unpublished(package_name: String, modules: Vec<CompiledModule>) -> Self {
+        Self {
+            package_id: ObjectID::ZERO,
+            package_name: package_name.clone(),
+            package_names: vec![package_name],
+            modules,
+            dependencies: vec![],
+            published_dependencies: vec![],
+            unpublished_dep_modules: BTreeMap::new(),
+            unpublished_dep_order: vec![],
+        }
+    }
+    pub fn rewrite_deps_by_module_name(
+        &mut self,
+        module_addr_map: &BTreeMap<String, ObjectID>,
+    ) -> Result<(), MovyError> {
+        rewrite_modules_by_name(&mut self.modules, module_addr_map)
+    }
+    pub fn ensure_immediate_deps(&mut self) {
+        let mut deps: BTreeSet<ObjectID> = self.dependencies.iter().copied().collect();
+        for md in &self.modules {
+            for dep in md.immediate_dependencies() {
+                let id: ObjectID = (*dep.address()).into();
+                if id != self.package_id && id != ObjectID::ZERO {
+                    deps.insert(id);
+                }
+            }
+        }
+        self.dependencies = deps.into_iter().collect();
     }
     pub fn into_deployment(self) -> (Vec<CompiledModule>, Vec<ObjectID>) {
         (self.modules.into_iter().collect(), self.dependencies)
@@ -119,9 +170,11 @@ impl SuiCompiledPackage {
             modules: vec![],
             dependencies: vec![],
             published_dependencies: self.published_dependencies.clone(),
+            unpublished_dep_modules: self.unpublished_dep_modules.clone(),
+            unpublished_dep_order: self.unpublished_dep_order.clone(),
         };
 
-        let deps: BTreeSet<ObjectID> = self.published_dependencies.clone().into_iter().collect();
+        let deps: BTreeSet<ObjectID> = self.dependencies.clone().into_iter().collect();
         for md in self.modules.iter() {
             let md = Self::mock_module(md);
             // deps.extend(
@@ -160,24 +213,55 @@ impl SuiCompiledPackage {
             .compiled_package_info
             .package_name
             .to_string();
-        let mut package_names = BTreeSet::new();
-        package_names.insert(package_name.clone());
+        let mut unpublished_dep_modules: BTreeMap<String, Vec<CompiledModule>> = BTreeMap::new();
         for (dep_name, unit) in artifacts.package.deps_compiled_units.iter() {
-            let module_addr: MoveAddress = (*unit.unit.module.self_id().address()).into();
-            if ObjectID::from(module_addr) == root_address {
-                package_names.insert(dep_name.to_string());
+            unpublished_dep_modules
+                .entry(dep_name.to_string())
+                .or_default()
+                .push(unit.unit.module.clone());
+        }
+        let mut unpublished_dep_order = Vec::new();
+        // dependency_graph topological_order is root-first. We need dependency-first publish order.
+        for dep_name in artifacts
+            .dependency_graph
+            .topological_order()
+            .into_iter()
+            .rev()
+        {
+            if dep_name == artifacts.package.compiled_package_info.package_name {
+                continue;
+            }
+            if unpublished_dep_modules.contains_key(dep_name.as_str()) {
+                unpublished_dep_order.push(dep_name.to_string());
             }
         }
+        let mut package_names = BTreeSet::new();
+        package_names.insert(package_name.clone());
+        let modules = if root_address == ObjectID::ZERO {
+            debug!("Root address is zero; using root modules only");
+            artifacts
+                .package
+                .root_modules()
+                .map(|m| m.unit.module.clone())
+                .collect::<Vec<_>>()
+        } else {
+            for (dep_name, unit) in artifacts.package.deps_compiled_units.iter() {
+                let module_addr: MoveAddress = (*unit.unit.module.self_id().address()).into();
+                if ObjectID::from(module_addr) == root_address {
+                    package_names.insert(dep_name.to_string());
+                }
+            }
+            artifacts
+                .package
+                .all_compiled_units()
+                .filter(|m| {
+                    debug!("Compiled module address: {}", m.address.into_inner());
+                    root_address == m.address.into_inner().into()
+                })
+                .map(|m| m.module.clone())
+                .collect::<Vec<_>>()
+        };
         let package_names = package_names.into_iter().collect::<Vec<_>>();
-        let modules = artifacts
-            .package
-            .all_compiled_units()
-            .filter(|m| {
-                debug!("Compiled module address: {}", m.address.into_inner());
-                root_address == m.address.into_inner().into()
-            })
-            .map(|m| m.module.clone())
-            .collect::<Vec<_>>();
         if modules.is_empty() {
             return Err(eyre!(
                 "Compiling {} yields 0 modules for root {}",
@@ -222,6 +306,8 @@ impl SuiCompiledPackage {
                 .values()
                 .cloned()
                 .collect(),
+            unpublished_dep_modules,
+            unpublished_dep_order,
         })
     }
 
@@ -251,6 +337,54 @@ impl SuiCompiledPackage {
 
         Self::build_all_unpublished_from_folder(dir.path(), false)
     }
+}
+
+fn rewrite_modules_by_name(
+    modules: &mut [CompiledModule],
+    module_addr_map: &BTreeMap<String, ObjectID>,
+) -> Result<(), MovyError> {
+    for module in modules.iter_mut() {
+        rewrite_module_by_name(module, module_addr_map)?;
+    }
+    Ok(())
+}
+
+fn rewrite_module_by_name(
+    module: &mut CompiledModule,
+    module_addr_map: &BTreeMap<String, ObjectID>,
+) -> Result<(), MovyError> {
+    let mut addr_index_map: BTreeMap<ObjectID, AddressIdentifierIndex> = BTreeMap::new();
+    for (idx, addr) in module.address_identifiers.iter().enumerate() {
+        addr_index_map.insert(ObjectID::from(*addr), AddressIdentifierIndex(idx as u16));
+    }
+
+    let self_handle_idx = module.self_handle_idx();
+    for idx in 0..module.module_handles.len() {
+        let handle_idx = ModuleHandleIndex(idx as u16);
+        if handle_idx == self_handle_idx {
+            continue;
+        }
+        let handle = module.module_handles[idx].clone();
+        let current_addr = *module.address_identifier_at(handle.address);
+        if current_addr != AccountAddress::ZERO {
+            continue;
+        }
+        let name = module.identifier_at(handle.name).to_string();
+        let Some(new_addr) = module_addr_map.get(&name) else {
+            continue;
+        };
+        let addr_idx = if let Some(existing) = addr_index_map.get(new_addr) {
+            *existing
+        } else {
+            let addr = AccountAddress::from(*new_addr);
+            module.address_identifiers.push(addr);
+            let new_idx = AddressIdentifierIndex((module.address_identifiers.len() - 1) as u16);
+            addr_index_map.insert(*new_addr, new_idx);
+            new_idx
+        };
+        module.module_handles[idx].address = addr_idx;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

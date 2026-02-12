@@ -14,14 +14,15 @@ use sui_adapter_latest::{
 use sui_move_natives_latest::all_natives;
 use sui_types::{
     TypeTag,
-    base_types::{ObjectID, SuiAddress},
+    base_types::{ObjectID, SequenceNumber, SuiAddress},
     committee::ProtocolVersion,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     gas::SuiGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    object::Owner,
+    move_package::MovePackage,
+    object::{Data, Object, Owner},
     storage::{BackingStore, ObjectStore, WriteKind},
     supported_protocol_versions::{Chain, ProtocolConfig},
     transaction::{
@@ -310,10 +311,8 @@ where
         // }
 
         if package_id == ObjectID::ZERO {
-            // derive id
-            let id = ObjectID::derive_id(TransactionDigest::genesis_marker(), self.deploy_ids);
-            self.deploy_ids += 1;
-            substitute_package_id(&mut modules, id)?;
+            // keep zero-address package id for publish flow
+            substitute_package_id(&mut modules, package_id)?;
         } else {
             // ensure the modules has the expected id
             for it in modules.iter_mut() {
@@ -369,6 +368,32 @@ where
         } else {
             Err(eyre!("fail to deploy").into())
         }
+    }
+
+    pub fn force_deploy_contract_at(
+        &mut self,
+        package_id: ObjectID,
+        project: SuiCompiledPackage,
+    ) -> Result<ObjectID, MovyError> {
+        let (modules, dependencies) = project.into_deployment();
+        let object = Object::new_package_from_data(
+            Data::Package(MovePackage::new_system(
+                SequenceNumber::new(),
+                &modules,
+                dependencies,
+            )),
+            TransactionDigest::genesis_marker(),
+        );
+        if object.id() != package_id {
+            return Err(eyre!(
+                "force publish id mismatch: expected {}, got {}",
+                package_id,
+                object.id()
+            )
+            .into());
+        }
+        self.db.commit_single_object(object)?;
+        Ok(package_id)
     }
 }
 
