@@ -30,7 +30,7 @@ use sui_types::{
 use crate::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
     exec::SuiExecutor,
-    tracer::NopTracer,
+    tracer::{NopTracer, tree::TreeTracer},
 };
 
 pub struct SuiTestingEnv<T> {
@@ -135,6 +135,7 @@ impl<
         epoch: u64,
         epoch_ms: u64,
         gas: ObjectID,
+        trace_movy_init: bool,
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
         tracing::info!("Compiling {} with non-test mode...", path.display());
         let abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
@@ -174,17 +175,34 @@ impl<
                 );
                 let ptb = builder.finish();
                 tracing::info!("Detected a {} at: {}", MOVY_INIT, md.module_id);
-                let results = executor.run_ptb_with_gas::<NopTracer>(
+                let tracer = if trace_movy_init {
+                    Some(TreeTracer::new())
+                } else {
+                    None
+                };
+                let mut results = executor.run_ptb_with_gas(
                     ptb,
                     epoch,
                     epoch_ms,
                     deployer.into(),
                     gas,
-                    None,
+                    tracer,
                 )?;
+                let trace = if let Some(tracer) = std::mem::take(&mut results.tracer) {
+                    Some(tracer.take_inner().pprint())
+                } else {
+                    None
+                };
                 if !results.effects.status().is_ok() {
+                    if let Some(trace) = trace {
+                        tracing::error!("movy_init reverts with:\n{}", trace);
+                    }
                     return Err(eyre!("movy_init reverts!").into());
                 }
+                tracing::trace!(
+                    "movy_init trace:\n{}",
+                    trace.unwrap_or_else(|| "-".to_string())
+                );
                 tracing::info!("Commiting movy_init effects...");
                 tracing::debug!(
                     "Status: {:?} Changed Objects: {}, Removed Objects: {}",
@@ -238,8 +256,8 @@ impl<
                     let objects = rpc
                         .filter_objects(ckpt, Some(OwnerKind::Shared), None, Some(tag))
                         .await?;
-                    for object in objects.iter() {
-                        self.db.load_object(object.id().into()).await?;
+                    for object in objects.into_iter() {
+                        self.db.commit_single_object(object)?;
                     }
                 }
             }

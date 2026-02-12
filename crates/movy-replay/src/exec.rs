@@ -13,11 +13,22 @@ use sui_adapter_latest::{
 };
 use sui_move_natives_latest::all_natives;
 use sui_types::{
-    TypeTag, base_types::{ObjectID, SuiAddress}, committee::ProtocolVersion, digests::TransactionDigest, effects::{TransactionEffects, TransactionEffectsAPI}, gas::SuiGasStatus, inner_temporary_store::InnerTemporaryStore, metrics::LimitsMetrics, object::Owner, storage::{BackingStore, ObjectStore, WriteKind}, supported_protocol_versions::{Chain, ProtocolConfig}, transaction::{
+    TypeTag,
+    base_types::{ObjectID, SuiAddress},
+    committee::ProtocolVersion,
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    gas::SuiGasStatus,
+    inner_temporary_store::InnerTemporaryStore,
+    metrics::LimitsMetrics,
+    object::Owner,
+    storage::{BackingStore, ObjectStore, WriteKind},
+    supported_protocol_versions::{Chain, ProtocolConfig},
+    transaction::{
         Argument, CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult,
         ObjectReadResultKind, ProgrammableTransaction, TransactionData, TransactionDataAPI,
         TransactionKind,
-    }
+    },
 };
 use tracing::{debug, trace, warn};
 
@@ -78,7 +89,7 @@ where
             metrics,
             registry,
             movevm,
-            deploy_ids: 0
+            deploy_ids: 0,
         })
     }
     pub fn new(db: T) -> Result<Self, MovyError> {

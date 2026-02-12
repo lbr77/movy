@@ -38,6 +38,8 @@ pub struct SuiTargetArgs {
     pub objects: Option<Vec<MoveAddress>>,
     #[arg(short, long, help = "Local packages to build.")]
     pub locals: Option<Vec<PathBuf>>,
+    #[arg(long, help = "Trace movy_init")]
+    pub trace_movy_init: bool,
 }
 
 impl SuiTargetArgs {
@@ -99,7 +101,15 @@ impl SuiTargetArgs {
         for local in self.locals.iter().flatten() {
             tracing::info!("Deploying the local package at {}", local.display());
             let (target_package, testing_abi, abi, package_names) = env
-                .load_local(local, deployer, attacker, epoch, epoch_ms, gas.into())
+                .load_local(
+                    local,
+                    deployer,
+                    attacker,
+                    epoch,
+                    epoch_ms,
+                    gas.into(),
+                    self.trace_movy_init,
+                )
                 .await?;
             for name in package_names.iter() {
                 local_name_map.insert(name.clone(), target_package);

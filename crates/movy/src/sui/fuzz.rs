@@ -12,8 +12,9 @@ use movy_replay::{
     env::SuiTestingEnv,
 };
 use movy_sui::{
-    database::{cache::CachedStore, graphql::GraphQlDatabase},
+    database::{cache::CachedStore, empty::EmptyStore, graphql::GraphQlDatabase},
     rpc::{graphql::GraphQlClient, grpc::SuiGrpcArg},
+    utils::TrivialBackStore,
 };
 use movy_types::{
     abi::MoveModuleId,
@@ -137,6 +138,11 @@ pub struct SuiFuzzArgs {
     )]
     pub force_removal: bool,
 
+    #[arg(short, long, help = "Enable GraphQL fallback")]
+    pub graphql: bool,
+    #[arg(long, help = "Enable GraphQL during deployment")]
+    pub graphql_deployment: bool,
+
     #[clap(flatten)]
     pub onchain: SuiOnchainArguments,
     #[clap(flatten)]
@@ -189,10 +195,16 @@ impl SuiFuzzArgs {
             .onchain
             .resolve_onchain_primitives(Some(&graphql))
             .await?;
-        let env = CachedStore::new(GraphQlDatabase::new_client(
-            graphql.clone(),
-            primitives.checkpoint,
-        ));
+
+        let inner = if self.graphql_deployment {
+            TrivialBackStore::T1(GraphQlDatabase::new_client(
+                graphql.clone(),
+                primitives.checkpoint,
+            ))
+        } else {
+            TrivialBackStore::T2(EmptyStore::default())
+        };
+        let env = CachedStore::new(inner);
         let gas_id = ObjectID::random_from_rng(&mut rand);
         env.mint_coin_id(
             MoveTypeTag::from_str("0x2::sui::SUI").unwrap(),
@@ -283,8 +295,19 @@ impl SuiFuzzArgs {
         // Arc<T> is send only if T is Sync while RefCell is not.
         let inner = testing_env.into_inner();
         let inner = Arc::try_unwrap(inner).unwrap();
+        let dump = inner.inner.take();
+        let inner = if self.graphql {
+            TrivialBackStore::T1(GraphQlDatabase::new_client(
+                graphql.clone(),
+                primitives.checkpoint,
+            ))
+        } else {
+            TrivialBackStore::T2(EmptyStore::default())
+        };
+        let store = CachedStore::new(inner);
+        store.restore_snapshot(dump);
         tokio::task::spawn_blocking(move || {
-            let env = SuiTestingEnv::new(inner.wrapped());
+            let env = SuiTestingEnv::new(store.wrapped());
             sui_fuzz::fuzz(
                 meta,
                 env,
