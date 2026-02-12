@@ -47,6 +47,7 @@ pub struct SuiExecutor<T> {
     pub metrics: Arc<LimitsMetrics>,
     pub registry: prometheus::Registry,
     pub movevm: Arc<MoveVM>,
+    pub deploy_ids: u64,
 }
 
 pub struct ExecutionResults {
@@ -87,6 +88,7 @@ where
             metrics,
             registry,
             movevm,
+            deploy_ids: 0
         })
     }
     pub fn new(db: T) -> Result<Self, MovyError> {
@@ -308,7 +310,8 @@ where
 
         if package_id == ObjectID::ZERO {
             // derive id
-            let id = ObjectID::derive_id(digest, creation_num);
+            let id = ObjectID::derive_id(digest, self.deploy_ids);
+            self.deploy_ids += 1;
             substitute_package_id(&mut modules, id)?;
         } else {
             // ensure the modules has the expected id
