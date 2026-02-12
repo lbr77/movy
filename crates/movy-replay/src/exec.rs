@@ -1,4 +1,4 @@
-use std::{ops::Deref, str::FromStr, sync::Arc};
+use std::{collections::BTreeSet, ops::Deref, str::FromStr, sync::Arc};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
@@ -266,6 +266,46 @@ where
         self.run_ptb_with_gas(ptb, epoch, epoch_ms, sender, gas_ref.0, tracer)
     }
 
+    fn expand_dependency_closure(&self, dependencies: &mut Vec<ObjectID>) -> Result<(), MovyError> {
+        let mut dep_set: BTreeSet<ObjectID> = dependencies.iter().copied().collect();
+        let mut pending: Vec<ObjectID> = dep_set.iter().copied().collect();
+
+        while let Some(package_id) = pending.pop() {
+            let Some(package) = self.db.get_package_object(&package_id)? else {
+                tracing::warn!(
+                    "dependency package {} not found while expanding publish closure",
+                    package_id
+                );
+                continue;
+            };
+
+            for dep in package.move_package().linkage_table().values() {
+                let dep_id = dep.upgraded_id;
+                if dep_set.insert(dep_id) {
+                    pending.push(dep_id);
+                }
+            }
+        }
+
+        *dependencies = dep_set.into_iter().collect();
+        Ok(())
+    }
+
+    fn rewrite_modules_self_id(modules: &mut [move_binary_format::CompiledModule], package_id: ObjectID) {
+        let new_addr = AccountAddress::from(package_id);
+        for module in modules.iter_mut() {
+            let old_self_addr = *module.address();
+            if ObjectID::from(old_self_addr) == package_id {
+                continue;
+            }
+            for addr in module.address_identifiers.iter_mut() {
+                if *addr == old_self_addr {
+                    *addr = new_addr;
+                }
+            }
+        }
+    }
+
     pub fn deploy_contract(
         &mut self,
         epoch: u64,
@@ -275,7 +315,16 @@ where
         project: SuiCompiledPackage,
     ) -> Result<ObjectID, MovyError> {
         let package_id = project.package_id;
-        let (mut modules, dependencies) = project.into_deployment();
+        let (mut modules, mut dependencies) = project.into_deployment();
+        let deps_before = dependencies.clone();
+        self.expand_dependency_closure(&mut dependencies)?;
+        if deps_before != dependencies {
+            debug!(
+                "Expanded publish dependencies from {:?} to {:?}",
+                deps_before,
+                dependencies
+            );
+        }
 
         debug!(
             "Deploying package with original id {} and dependencies {:?}, modules are [{}]",
@@ -314,15 +363,8 @@ where
             // keep zero-address package id for publish flow
             substitute_package_id(&mut modules, package_id)?;
         } else {
-            // ensure the modules has the expected id
-            for it in modules.iter_mut() {
-                let self_handle = it.self_handle().clone();
-                let self_address_idx = self_handle.address;
-
-                let addrs = &mut it.address_identifiers;
-                let address_mut = addrs.get_mut(self_address_idx.0 as usize).unwrap();
-                *address_mut = package_id.into();
-            }
+            // force module self-address to the target package id
+            Self::rewrite_modules_self_id(&mut modules, package_id);
         }
 
         let mut modules_bytes = vec![];
@@ -375,7 +417,9 @@ where
         package_id: ObjectID,
         project: SuiCompiledPackage,
     ) -> Result<ObjectID, MovyError> {
-        let (modules, dependencies) = project.into_deployment();
+        let (mut modules, mut dependencies) = project.into_deployment();
+        self.expand_dependency_closure(&mut dependencies)?;
+        Self::rewrite_modules_self_id(&mut modules, package_id);
         let object = Object::new_package_from_data(
             Data::Package(MovePackage::new_system(
                 SequenceNumber::new(),

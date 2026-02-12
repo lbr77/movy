@@ -64,6 +64,8 @@ pub struct SuiCompiledPackage {
     unpublished_dep_modules: BTreeMap<String, Vec<CompiledModule>>,
     #[serde(default)]
     unpublished_dep_order: Vec<String>,
+    #[serde(default)]
+    published_dep_ids: BTreeMap<String, ObjectID>,
 }
 
 impl SuiCompiledPackage {
@@ -79,6 +81,9 @@ impl SuiCompiledPackage {
     pub fn unpublished_dep_modules(&self) -> &BTreeMap<String, Vec<CompiledModule>> {
         &self.unpublished_dep_modules
     }
+    pub fn published_dep_ids(&self) -> &BTreeMap<String, ObjectID> {
+        &self.published_dep_ids
+    }
     pub fn new_unpublished(package_name: String, modules: Vec<CompiledModule>) -> Self {
         Self {
             package_id: ObjectID::ZERO,
@@ -89,6 +94,7 @@ impl SuiCompiledPackage {
             published_dependencies: vec![],
             unpublished_dep_modules: BTreeMap::new(),
             unpublished_dep_order: vec![],
+            published_dep_ids: BTreeMap::new(),
         }
     }
     pub fn rewrite_deps_by_module_name(
@@ -97,12 +103,31 @@ impl SuiCompiledPackage {
     ) -> Result<(), MovyError> {
         rewrite_modules_by_name(&mut self.modules, module_addr_map)
     }
+    pub fn rewrite_deps_by_package_id(
+        &mut self,
+        package_id_map: &BTreeMap<ObjectID, ObjectID>,
+    ) -> Result<(), MovyError> {
+        rewrite_modules_by_id(&mut self.modules, package_id_map)?;
+
+        let mut deps = BTreeSet::new();
+        for dep in self.dependencies.iter().copied() {
+            let mapped = package_id_map.get(&dep).copied().unwrap_or(dep);
+            deps.insert(mapped);
+        }
+        self.dependencies = deps.into_iter().collect();
+        Ok(())
+    }
     pub fn ensure_immediate_deps(&mut self) {
         let mut deps: BTreeSet<ObjectID> = self.dependencies.iter().copied().collect();
+        let self_ids: BTreeSet<ObjectID> = self
+            .modules
+            .iter()
+            .map(|m| ObjectID::from(*m.address()))
+            .collect();
         for md in &self.modules {
             for dep in md.immediate_dependencies() {
                 let id: ObjectID = (*dep.address()).into();
-                if id != self.package_id && id != ObjectID::ZERO {
+                if id != ObjectID::ZERO && id != self.package_id && !self_ids.contains(&id) {
                     deps.insert(id);
                 }
             }
@@ -172,6 +197,7 @@ impl SuiCompiledPackage {
             published_dependencies: self.published_dependencies.clone(),
             unpublished_dep_modules: self.unpublished_dep_modules.clone(),
             unpublished_dep_order: self.unpublished_dep_order.clone(),
+            published_dep_ids: self.published_dep_ids.clone(),
         };
 
         let deps: BTreeSet<ObjectID> = self.dependencies.clone().into_iter().collect();
@@ -308,6 +334,12 @@ impl SuiCompiledPackage {
                 .collect(),
             unpublished_dep_modules,
             unpublished_dep_order,
+            published_dep_ids: artifacts
+                .dependency_ids
+                .published
+                .iter()
+                .map(|(name, id)| (name.to_string(), *id))
+                .collect(),
         })
     }
 
@@ -337,6 +369,53 @@ impl SuiCompiledPackage {
 
         Self::build_all_unpublished_from_folder(dir.path(), false)
     }
+}
+
+fn rewrite_modules_by_id(
+    modules: &mut [CompiledModule],
+    package_id_map: &BTreeMap<ObjectID, ObjectID>,
+) -> Result<(), MovyError> {
+    for module in modules.iter_mut() {
+        rewrite_module_by_id(module, package_id_map)?;
+    }
+    Ok(())
+}
+
+fn rewrite_module_by_id(
+    module: &mut CompiledModule,
+    package_id_map: &BTreeMap<ObjectID, ObjectID>,
+) -> Result<(), MovyError> {
+    let mut addr_index_map: BTreeMap<ObjectID, AddressIdentifierIndex> = BTreeMap::new();
+    for (idx, addr) in module.address_identifiers.iter().enumerate() {
+        addr_index_map.insert(ObjectID::from(*addr), AddressIdentifierIndex(idx as u16));
+    }
+
+    let self_handle_idx = module.self_handle_idx();
+    for idx in 0..module.module_handles.len() {
+        let handle_idx = ModuleHandleIndex(idx as u16);
+        if handle_idx == self_handle_idx {
+            continue;
+        }
+        let handle = module.module_handles[idx].clone();
+        let current_id = ObjectID::from(*module.address_identifier_at(handle.address));
+        let Some(new_id) = package_id_map.get(&current_id) else {
+            continue;
+        };
+        if *new_id == current_id {
+            continue;
+        }
+        let addr_idx = if let Some(existing) = addr_index_map.get(new_id) {
+            *existing
+        } else {
+            let addr = AccountAddress::from(*new_id);
+            module.address_identifiers.push(addr);
+            let new_idx = AddressIdentifierIndex((module.address_identifiers.len() - 1) as u16);
+            addr_index_map.insert(*new_id, new_idx);
+            new_idx
+        };
+        module.module_handles[idx].address = addr_idx;
+    }
+    Ok(())
 }
 
 fn rewrite_modules_by_name(

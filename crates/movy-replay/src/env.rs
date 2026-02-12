@@ -173,6 +173,16 @@ impl<
         // Redeploy all local dependencies in dependency-first order before root package deploy.
         // `unpublished_dep_order` includes the reversed topological order from compile phase.
         let mut zero_module_addr_map: BTreeMap<String, ObjectID> = BTreeMap::new();
+        let mut package_id_map: BTreeMap<ObjectID, ObjectID> = BTreeMap::new();
+        tracing::debug!(
+            "published dep ids keys: {}",
+            compiled_result
+                .published_dep_ids()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(",")
+        );
         for dep_name in compiled_result.unpublished_dep_order().iter() {
             let Some(modules) = compiled_result.unpublished_dep_modules().get(dep_name) else {
                 return Err(eyre!("missing modules for dependency {}", dep_name).into());
@@ -182,28 +192,61 @@ impl<
             }
 
             let dep_self_addr = ObjectID::from(*modules[0].address());
+            let dep_target_addr = compiled_result
+                .published_dep_ids()
+                .get(dep_name)
+                .copied()
+                .unwrap_or(dep_self_addr);
+            tracing::debug!(
+                "dep {} self {} target {}",
+                dep_name,
+                dep_self_addr,
+                dep_target_addr
+            );
+
             let mut dep_pkg = SuiCompiledPackage::new_unpublished(dep_name.clone(), modules.clone());
+            if !package_id_map.is_empty() {
+                dep_pkg.rewrite_deps_by_package_id(&package_id_map)?;
+            }
             if dep_self_addr == ObjectID::ZERO && !zero_module_addr_map.is_empty() {
                 dep_pkg.rewrite_deps_by_module_name(&zero_module_addr_map)?;
             }
             dep_pkg.ensure_immediate_deps();
+            if !package_id_map.is_empty() {
+                dep_pkg.rewrite_deps_by_package_id(&package_id_map)?;
+                dep_pkg.ensure_immediate_deps();
+            }
             let dep_pkg = dep_pkg.movy_mock()?;
-            let dep_address = if dep_self_addr == ObjectID::ZERO {
+            let dep_address = if dep_target_addr == ObjectID::ZERO {
                 executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, dep_pkg)?
             } else {
-                executor.force_deploy_contract_at(dep_self_addr, dep_pkg)?
+                executor.force_deploy_contract_at(dep_target_addr, dep_pkg)?
             };
             tracing::info!("publishing {} at {}", dep_name, dep_address);
+
+            if dep_self_addr != ObjectID::ZERO && dep_self_addr != dep_address {
+                package_id_map.insert(dep_self_addr, dep_address);
+            }
+            if dep_target_addr != ObjectID::ZERO && dep_target_addr != dep_address {
+                package_id_map.insert(dep_target_addr, dep_address);
+            }
 
             // Record module -> package mapping for all deployed dependencies so later packages
             // can rewrite zero-address module handles to concrete on-chain package IDs.
             record_zero_address_modules(&mut zero_module_addr_map, modules, dep_address)?;
         }
 
+        if !package_id_map.is_empty() {
+            compiled_result.rewrite_deps_by_package_id(&package_id_map)?;
+        }
         if !zero_module_addr_map.is_empty() {
             compiled_result.rewrite_deps_by_module_name(&zero_module_addr_map)?;
         }
         compiled_result.ensure_immediate_deps();
+        if !package_id_map.is_empty() {
+            compiled_result.rewrite_deps_by_package_id(&package_id_map)?;
+            compiled_result.ensure_immediate_deps();
+        }
 
         let compiled_result = compiled_result.movy_mock()?;
         tracing::debug!(
