@@ -8,7 +8,7 @@ use move_trace_format::{
     format::{Effect, TraceEvent, TraceValue, TypeTagWithRefs},
     value::SerializableMoveValue,
 };
-use log::{trace, warn};
+use tracing::{trace, warn};
 use z3::ast::{Ast, Bool, Int};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

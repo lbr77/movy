@@ -1,5 +1,5 @@
 use move_trace_format::format::TraceEvent;
-use log::{debug, trace};
+use tracing::{debug, trace};
 
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};

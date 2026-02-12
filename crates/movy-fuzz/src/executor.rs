@@ -26,7 +26,7 @@ use sui_types::{
     execution_status::ExecutionStatus,
     storage::{BackingStore, ObjectStore},
 };
-use log::trace;
+use tracing::trace;
 
 use crate::{
     input::MoveInput,
@@ -239,17 +239,17 @@ where
             success,
         };
 
-        if log::log_enabled!(log::Level::Debug) {
+        if tracing::enabled!(tracing::Level::DEBUG) {
             for ev in events.iter() {
                 if let Some((st, ev)) = state.fuzz_state().decode_sui_event(ev)? {
-                    log::debug!(
+                    tracing::debug!(
                         "Event: {}({})",
                         st.to_canonical_string(true),
                         serde_json::to_string(&ev)
                             .unwrap_or_else(|e| format!("json err({}): {:?}", e, ev))
                     );
                 } else {
-                    log::debug!(
+                    tracing::debug!(
                         "Event {} missing for decoding",
                         ev.type_.to_canonical_string(true)
                     );

@@ -5,7 +5,7 @@ use move_trace_format::{
     format::{Frame, TraceEvent, TraceValue},
     interface::Tracer,
 };
-use log::warn;
+use tracing::warn;
 
 #[derive(Debug, Clone)]
 pub struct FrameTraced {

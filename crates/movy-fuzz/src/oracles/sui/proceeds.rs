@@ -4,7 +4,7 @@ use std::{
 };
 
 use move_trace_format::format::TraceEvent;
-use log::debug;
+use tracing::debug;
 
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle, trace::TraceState};
 use movy_types::{
