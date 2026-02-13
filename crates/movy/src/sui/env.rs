@@ -95,7 +95,7 @@ impl SuiTargetArgs {
         let mut local_abis = vec![];
         for local in self.locals.iter().flatten() {
             tracing::info!("Deploying the local package at {}", local.display());
-            let (target_package, testing_abi, abi, package_names) = env
+            let (target_package, testing_abi, abi, package_names, package_name_map) = env
                 .load_local(
                     local,
                     deployer,
@@ -106,6 +106,9 @@ impl SuiTargetArgs {
                     self.trace_movy_init,
                 )
                 .await?;
+            for (name, addr) in package_name_map {
+                local_name_map.insert(name, addr);
+            }
             for name in package_names.iter() {
                 local_name_map.insert(name.clone(), target_package);
             }

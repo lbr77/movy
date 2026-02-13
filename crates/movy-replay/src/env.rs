@@ -161,12 +161,19 @@ impl<
         epoch_ms: u64,
         gas: ObjectID,
         trace_movy_init: bool,
-    ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
+    ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>, BTreeMap<String, MoveAddress>), MovyError> {
         tracing::info!("Compiling {} with test mode...", path.display());
         let mut compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
         compiled_result.ensure_immediate_deps();
         let root_package_name = compiled_result.package_name.clone();
         let package_names = compiled_result.package_names.clone();
+        let mut package_name_map: BTreeMap<String, MoveAddress> = BTreeMap::new();
+        for (dep_name, dep_id) in compiled_result.published_dep_ids() {
+            package_name_map.entry(dep_name.clone()).or_insert((*dep_id).into());
+            package_name_map
+                .entry(dep_name.to_ascii_lowercase())
+                .or_insert((*dep_id).into());
+        }
         let mut non_test_abi = compiled_result.abi()?;
         let mut executor = SuiExecutor::new(self.db.clone())?;
 
@@ -223,6 +230,8 @@ impl<
                 executor.force_deploy_contract_at(dep_target_addr, dep_pkg)?
             };
             tracing::info!("publishing {} at {}", dep_name, dep_address);
+            package_name_map.insert(dep_name.clone(), dep_address.into());
+            package_name_map.insert(dep_name.to_ascii_lowercase(), dep_address.into());
 
             if dep_self_addr != ObjectID::ZERO && dep_self_addr != dep_address {
                 package_id_map.insert(dep_self_addr, dep_address);
@@ -329,10 +338,13 @@ impl<
                     .commit_store(results.results.store, &results.results.effects)?;
             }
         }
-
         non_test_abi.published_at(address.into());
         abi.published_at(address.into());
-        Ok((address.into(), abi, non_test_abi, package_names))
+        for name in package_names.iter() {
+            package_name_map.insert(name.clone(), address.into());
+            package_name_map.insert(name.to_ascii_lowercase(), address.into());
+        }
+        Ok((address.into(), abi, non_test_abi, package_names, package_name_map))
     }
 
     pub async fn export_abi(&self) -> Result<BTreeMap<MoveAddress, MovePackageAbi>, MovyError> {
