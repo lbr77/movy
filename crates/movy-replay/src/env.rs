@@ -257,9 +257,12 @@ impl<
                 .map(|v| v.self_id().name().to_string())
                 .join(", ")
         );
-        let address =
-            executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?;
-        tracing::info!("publishing {} at {}", root_package_name, address);
+        let address = executor.force_deploy_contract_at(ObjectID::ZERO, compiled_result)?;
+        tracing::info!(
+            "publishing {} at {} (forced root package id)",
+            root_package_name,
+            address
+        );
 
         // In search of any deploy functions
         let mut abi = self.db.get_package_info(address.into())?.unwrap();

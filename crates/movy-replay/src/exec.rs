@@ -58,6 +58,8 @@ pub struct ExecutionResults {
     pub gas: SuiGasStatus,
 }
 
+const DEPLOY_ID_NAMESPACE: TransactionDigest = TransactionDigest::new([0xA5; 32]);
+
 pub struct ExecutionTracedResults<R> {
     pub results: ExecutionResults,
     pub tracer: Option<R>,
@@ -271,11 +273,15 @@ where
         let mut pending: Vec<ObjectID> = dep_set.iter().copied().collect();
 
         while let Some(package_id) = pending.pop() {
+            if let Some(object) = self.db.get_object(&package_id)
+                && !object.is_package()
+            {
+                dep_set.remove(&package_id);
+                continue;
+            }
+
             let Some(package) = self.db.get_package_object(&package_id)? else {
-                tracing::warn!(
-                    "dependency package {} not found while expanding publish closure",
-                    package_id
-                );
+                dep_set.remove(&package_id);
                 continue;
             };
 
@@ -360,8 +366,11 @@ where
         // }
 
         if package_id == ObjectID::ZERO {
-            // keep zero-address package id for publish flow
-            substitute_package_id(&mut modules, package_id)?;
+            // Derive unpublished package IDs from a dedicated namespace digest.
+            // Using genesis marker (all-zero digest) can collide with fresh IDs created in tests.
+            let id = ObjectID::derive_id(DEPLOY_ID_NAMESPACE, self.deploy_ids);
+            self.deploy_ids += 1;
+            substitute_package_id(&mut modules, id)?;
         } else {
             // force module self-address to the target package id
             Self::rewrite_modules_self_id(&mut modules, package_id);
