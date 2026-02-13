@@ -1,16 +1,13 @@
 use std::{collections::BTreeSet, ops::Deref, str::FromStr, sync::Arc};
 
 use color_eyre::eyre::eyre;
-use itertools::Itertools;
+use fastcrypto::hash::HashFunction;
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use move_vm_runtime::move_vm::MoveVM;
 use movy_sui::{compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit};
 use movy_types::{error::MovyError, object::MoveOwner};
-use sui_adapter_latest::{
-    adapter::substitute_package_id,
-    execution_mode::{ExecutionMode, Normal},
-};
+use sui_adapter_latest::execution_mode::{ExecutionMode, Normal};
 use sui_move_natives_latest::all_natives;
 use sui_types::{
     TypeTag,
@@ -49,7 +46,6 @@ pub struct SuiExecutor<T> {
     pub metrics: Arc<LimitsMetrics>,
     pub registry: prometheus::Registry,
     pub movevm: Arc<MoveVM>,
-    pub deploy_ids: u64,
 }
 
 pub struct ExecutionResults {
@@ -58,7 +54,6 @@ pub struct ExecutionResults {
     pub gas: SuiGasStatus,
 }
 
-const DEPLOY_ID_NAMESPACE: TransactionDigest = TransactionDigest::new([0xA5; 32]);
 
 pub struct ExecutionTracedResults<R> {
     pub results: ExecutionResults,
@@ -76,6 +71,24 @@ impl<T> SuiExecutor<T>
 where
     T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
 {
+    fn derive_package_id_from_module_ids(modules: &[move_binary_format::CompiledModule]) -> ObjectID {
+        let mut module_ids = modules
+            .iter()
+            .map(|m| {
+                let id = m.self_id();
+                format!("{}::{}", id.address(), id.name())
+            })
+            .collect::<Vec<_>>();
+        module_ids.sort_unstable();
+        let mut hasher = sui_types::crypto::DefaultHash::default();
+        for id in module_ids {
+            hasher.update(id.as_bytes());
+            hasher.update([0u8]);
+        }
+        let digest = TransactionDigest::new(hasher.finalize().digest);
+        ObjectID::derive_id(digest, 0)
+    }
+
     pub fn new_with_cheats_storage(db: T) -> Result<Self, MovyError> {
         let protocol_config = testing_proto();
         let registry = prometheus::Registry::new();
@@ -92,7 +105,6 @@ where
             metrics,
             registry,
             movevm,
-            deploy_ids: 0,
         })
     }
     pub fn new(db: T) -> Result<Self, MovyError> {
@@ -331,7 +343,6 @@ where
                 dependencies
             );
         }
-
         debug!(
             "Deploying package with original id {} and dependencies {:?}, modules are [{}]",
             package_id,
@@ -342,6 +353,7 @@ where
                     let id = v.self_id();
                     format!("{}:{}", id.address().to_string(), id.name().to_string())
                 })
+                .collect::<Vec<_>>()
                 .join(",")
         );
         // rebase to zero address as sui publish requires
@@ -364,18 +376,15 @@ where
         //         }
         //     }
         // }
-
         if package_id == ObjectID::ZERO {
-            // Derive unpublished package IDs from a dedicated namespace digest.
-            // Using genesis marker (all-zero digest) can collide with fresh IDs created in tests.
-            let id = ObjectID::derive_id(DEPLOY_ID_NAMESPACE, self.deploy_ids);
-            self.deploy_ids += 1;
-            substitute_package_id(&mut modules, id)?;
+            let derived_id = Self::derive_package_id_from_module_ids(&modules);
+            tracing::debug!("package_id is zero, derived package id: {}", derived_id);
+            Self::rewrite_modules_self_id(&mut modules, derived_id);
         } else {
             // force module self-address to the target package id
             Self::rewrite_modules_self_id(&mut modules, package_id);
         }
-
+        
         let mut modules_bytes = vec![];
         for module in &modules {
             let mut buf = vec![];

@@ -101,7 +101,12 @@ impl SuiCompiledPackage {
         &mut self,
         module_addr_map: &BTreeMap<String, ObjectID>,
     ) -> Result<(), MovyError> {
-        rewrite_modules_by_name(&mut self.modules, module_addr_map)
+        let local_module_names = self
+            .modules
+            .iter()
+            .map(|m| m.name().to_string())
+            .collect::<BTreeSet<_>>();
+        rewrite_modules_by_name(&mut self.modules, module_addr_map, &local_module_names)
     }
     pub fn rewrite_deps_by_package_id(
         &mut self,
@@ -421,16 +426,17 @@ fn rewrite_module_by_id(
 fn rewrite_modules_by_name(
     modules: &mut [CompiledModule],
     module_addr_map: &BTreeMap<String, ObjectID>,
+    local_module_names: &BTreeSet<String>,
 ) -> Result<(), MovyError> {
     for module in modules.iter_mut() {
-        rewrite_module_by_name(module, module_addr_map)?;
+        rewrite_module_by_name(module, module_addr_map, local_module_names)?;
     }
     Ok(())
 }
-
 fn rewrite_module_by_name(
     module: &mut CompiledModule,
     module_addr_map: &BTreeMap<String, ObjectID>,
+    local_module_names: &BTreeSet<String>,
 ) -> Result<(), MovyError> {
     let mut addr_index_map: BTreeMap<ObjectID, AddressIdentifierIndex> = BTreeMap::new();
     for (idx, addr) in module.address_identifiers.iter().enumerate() {
@@ -449,6 +455,9 @@ fn rewrite_module_by_name(
             continue;
         }
         let name = module.identifier_at(handle.name).to_string();
+        if local_module_names.contains(&name) {
+            continue;
+        }
         let Some(new_addr) = module_addr_map.get(&name) else {
             continue;
         };
