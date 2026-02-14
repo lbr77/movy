@@ -153,16 +153,32 @@ impl<
         let package_names = compiled_result.package_names.clone();
         let compiled_result = compiled_result.movy_mock()?;
 
-        // Deploy onchain deps (execpt stds)
-        for dep in abi_result.dependencies().iter() {
-            let dep = AccountAddress::from(*dep);
-            if self.db.get_object(&dep.into()).is_none() {
+        // Deploy onchain deps or deps used by immediate dependencies
+        for dep in abi_result.dependencies().iter().map(|v| v.clone()).chain(
+            abi_result
+                .all_modules_iter()
+                .map(|t| {
+                    t.immediate_dependencies()
+                        .into_iter()
+                        .map(|im| (*im.address()).into())
+                })
+                .flatten(),
+        ) {
+            let dep = AccountAddress::from(dep);
+
+            if dep != AccountAddress::ZERO && self.db.get_object(&dep.into()).is_none() {
                 tracing::info!(
                     "Dependency {} not found in our db for {}, trying to fetch it from onchain",
                     dep,
                     path.display()
                 );
-                self.deploy_package_at_address(dep.into(), rpc).await?;
+                if let Err(e) = self.deploy_package_at_address(dep.into(), rpc).await {
+                    tracing::warn!(
+                        "Fail to add the object {} due to {}, this might be fine though.",
+                        dep,
+                        e
+                    );
+                }
             }
         }
 
@@ -317,12 +333,14 @@ impl<
                 .ok_or_else(|| eyre!("Expected package data for {}", object.id()))?;
 
             for upgrade_info in pkg.linkage_table().values() {
-                tracing::info!(
-                    "Fetching ugprade cap {} from chain",
-                    upgrade_info.upgraded_id
-                );
-                self.deploy_object_id(upgrade_info.upgraded_id.into(), rpc)
-                    .await?;
+                if self.db.get_object(&upgrade_info.upgraded_id).is_none() {
+                    tracing::info!(
+                        "Fetching ugprade cap {} from chain",
+                        upgrade_info.upgraded_id
+                    );
+                    self.deploy_object_id(upgrade_info.upgraded_id.into(), rpc)
+                        .await?;
+                }
             }
             self.db.commit_single_object(object)?;
         } else {

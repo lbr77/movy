@@ -91,10 +91,7 @@ impl Display for SuiCompiledPackage {
                     format!("{}:{}", id.address(), id.name().as_str())
                 })
                 .join(", "),
-            self.published_dependencies
-                .iter()
-                .map(|t| t.to_string())
-                .join(", ")
+            self.dependencies.iter().map(|t| t.to_string()).join(", ")
         ))
     }
 }
@@ -110,7 +107,7 @@ impl SuiCompiledPackage {
         MovePackageAbi::from_sui_id_and_modules(self.package_id, self.all_modules_iter())
     }
     pub fn dependencies(&self) -> &Vec<ObjectID> {
-        &self.published_dependencies
+        &self.dependencies
     }
 
     pub fn test_modules(&self) -> Vec<&CompiledModule> {
@@ -167,7 +164,7 @@ impl SuiCompiledPackage {
             published_dependencies: self.published_dependencies.clone(),
         };
 
-        let deps: BTreeSet<ObjectID> = self.published_dependencies.clone().into_iter().collect();
+        let deps: BTreeSet<ObjectID> = self.dependencies.clone().into_iter().collect();
         for md in self.modules.iter() {
             let md = Self::mock_module(md);
             // deps.extend(
@@ -330,12 +327,23 @@ impl SuiCompiledPackage {
             .published
             .iter()
             .map(|v| *v.1)
+            // .chain(modules.iter().map(|v| {
+            //     v.immediate_dependencies().into_iter().map(|t| (*t.address()).into()) // we comment this because we may add multiple addresses that belongs to the upgraded packages which share the same UpgradeCap.
+            // }).flatten())
+            .filter(|t| t != &ObjectID::ZERO && t != &root_address)
             .collect::<BTreeSet<ObjectID>>();
 
+        let published: Vec<ObjectID> = artifacts
+            .dependency_ids
+            .published
+            .values()
+            .cloned()
+            .collect();
         debug!(
-            "Package {} transitively depends on {}",
+            "Package {} transitively depends on {}, the publised ids are {}",
             root_address,
-            deps.iter().map(|t| t.to_string()).join(",")
+            deps.iter().map(|t| t.to_string()).join(","),
+            published.iter().map(|t| t.to_string()).join(",")
         );
         Ok(SuiCompiledPackage {
             package_id: (*root_address).into(),
@@ -343,12 +351,7 @@ impl SuiCompiledPackage {
             package_names,
             modules,
             dependencies: deps.into_iter().collect(),
-            published_dependencies: artifacts
-                .dependency_ids
-                .published
-                .values()
-                .cloned()
-                .collect(),
+            published_dependencies: published,
         })
     }
 
