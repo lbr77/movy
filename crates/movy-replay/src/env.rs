@@ -6,9 +6,10 @@ use std::{
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
+use move_core_types::account_address::AccountAddress;
 use movy_sui::{
     compile::SuiCompiledPackage,
-    database::cache::ObjectSuiStoreCommit,
+    database::{cache::ObjectSuiStoreCommit, graphql::GraphQlDatabase},
     rpc::graphql::{GraphQlClient, OwnerKind},
 };
 use movy_types::{
@@ -135,23 +136,36 @@ impl<
         epoch: u64,
         epoch_ms: u64,
         gas: ObjectID,
+        unpublished: bool,
+        verify_deps: bool,
         trace_movy_init: bool,
+        rpc: &GraphQlDatabase,
     ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>), MovyError> {
         tracing::info!("Compiling {} with non-test mode...", path.display());
-        let abi_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, false)?;
+        let abi_result = SuiCompiledPackage::build_checked(path, false, unpublished, verify_deps)?;
         let mut non_test_abi = abi_result.abi()?;
+        tracing::info!("Compiled summary: {}", &abi_result);
         tracing::info!("Compiling {} with test mode...", path.display());
-        let compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        let compiled_result =
+            SuiCompiledPackage::build_checked(path, true, unpublished, verify_deps)?;
+        tracing::info!("Compiled summary: {}", &compiled_result);
+
         let package_names = compiled_result.package_names.clone();
         let compiled_result = compiled_result.movy_mock()?;
-        tracing::debug!(
-            "test modules are {}",
-            compiled_result
-                .test_modules()
-                .iter()
-                .map(|v| v.self_id().name().to_string())
-                .join(", ")
-        );
+
+        // Deploy onchain deps (execpt stds)
+        for dep in abi_result.dependencies().iter() {
+            let dep = AccountAddress::from(*dep);
+            if self.db.get_object(&dep.into()).is_none() {
+                tracing::info!(
+                    "Dependency {} not found in our db for {}, trying to fetch it from onchain",
+                    dep,
+                    path.display()
+                );
+                self.deploy_package_at_address(dep.into(), rpc).await?;
+            }
+        }
+
         let mut executor = SuiExecutor::new(self.db.clone())?;
         let address =
             executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?;
@@ -279,20 +293,44 @@ impl<
         Ok(())
     }
 
-    pub async fn deploy_address(&self, package_id: MoveAddress) -> Result<(), MovyError> {
-        let Some(package_object) = self.db.get_object(&package_id.into()) else {
-            return Err(eyre!("Package object not found: {}", package_id).into());
-        };
-
-        // Analyze package dependencies
-        let pkg = package_object
-            .data
-            .try_as_package()
-            .ok_or_else(|| eyre!("Expected package data"))?;
-        for upgrade_info in pkg.linkage_table().values() {
-            self.db.load_object(upgrade_info.upgraded_id.into()).await?;
+    pub async fn deploy_object_id(
+        &self,
+        package_id: MoveAddress,
+        rpc: &GraphQlDatabase,
+    ) -> Result<(), MovyError> {
+        if let Some(object) = rpc.get_object(package_id.into()).await? {
+            self.db.commit_single_object(object)?;
+        } else {
+            return Err(eyre!("object {} not found", package_id).into());
         }
 
+        Ok(())
+    }
+
+    pub async fn deploy_package_at_address(
+        &self,
+        package_id: MoveAddress,
+        rpc: &GraphQlDatabase,
+    ) -> Result<(), MovyError> {
+        tracing::info!("Fetching package {} from chain", package_id);
+        if let Some(object) = rpc.get_object(package_id.into()).await? {
+            let pkg = object
+                .data
+                .try_as_package()
+                .ok_or_else(|| eyre!("Expected package data for {}", object.id()))?;
+
+            for upgrade_info in pkg.linkage_table().values() {
+                tracing::info!(
+                    "Fetching ugprade cap {} from chain",
+                    upgrade_info.upgraded_id
+                );
+                self.deploy_object_id(upgrade_info.upgraded_id.into(), rpc)
+                    .await?;
+            }
+            self.db.commit_single_object(object)?;
+        } else {
+            return Err(eyre!("package {} not found", package_id).into());
+        }
         Ok(())
     }
 

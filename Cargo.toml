@@ -86,7 +86,7 @@ sui-execution = {git = "https://github.com/wtdcode/sui", branch = "v1.60.1-fuzz"
 shared-crypto = {git = "https://github.com/wtdcode/sui", branch = "v1.60.1-fuzz"}
 sui-move-natives-latest = {git = "https://github.com/wtdcode/sui", branch = "v1.60.1-fuzz"}
 sui-adapter-latest = {git = "https://github.com/wtdcode/sui", branch = "v1.60.1-fuzz"}
-# sui-adapter-v2 = {git = "https://github.com/wtdcode/sui", branch = "v1.60.1-fuzz"}
+
 
 sui-rpc = { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2" }
 sui-sdk-types =  { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2" }
@@ -114,9 +114,9 @@ fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "09f86974
 # sui-snapshot = {path = "../sui/crates/sui-snapshot"}
 # sui-core = {path = "../sui/crates/sui-core"}
 # sui-execution = {path = "../sui/sui-execution", features = ["testing"]}
-# # sui-adapter-v2 = {path = "../sui/sui-execution/v2/sui-adapter/"}
 # shared-crypto = {path = "../sui/crates/shared-crypto"}
-
+# sui-move-natives-latest = {path = "../sui/sui-execution/latest/sui-move-natives/"}
+# sui-adapter-latest = {path = "../sui/sui-execution/latest/sui-adapter/"}
 
 # Aptos dependencies
 

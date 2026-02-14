@@ -5,8 +5,9 @@ use std::{
 
 use clap::Args;
 use color_eyre::eyre::eyre;
+use movy_fuzz::utils::{SuperRand, random_seed};
 use movy_sui::rpc::graphql::GraphQlClient;
-use movy_types::error::MovyError;
+use movy_types::{error::MovyError, input::MoveAddress};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 pub fn read_value<T: DeserializeOwned>(path: &Path) -> Result<T, MovyError> {
@@ -102,4 +103,37 @@ impl SuiOnchainArguments {
             epoch_ms: epoch.start_timestamp.timestamp().try_into().unwrap(),
         })
     }
+}
+
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+pub struct RngSeed {
+    #[arg(long, help = "rng seed")]
+    pub seed: Option<u64>,
+}
+
+impl RngSeed {
+    pub fn rng(&self) -> SuperRand {
+        let seed = if let Some(seed) = self.seed {
+            seed
+        } else {
+            random_seed()
+        };
+        SuperRand::new(seed)
+    }
+}
+
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+pub struct MovyInitRoles {
+    #[arg(
+        long,
+        help = "deployer to use",
+        default_value = "0xb64151ee0dd0f7bab72df320c5f8e0c4b784958e7411a6c37d352fe9e176092f"
+    )]
+    pub deployer: MoveAddress,
+    #[arg(
+        long,
+        help = "attacker to use",
+        default_value = "0xa773c4c5ef0b74150638fcfe8b0cd1bb3bbf6f1af963715168ad909bbaf2eddb"
+    )]
+    pub attacker: MoveAddress,
 }

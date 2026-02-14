@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, fmt::Display, path::PathBuf};
 
 use clap::Args;
 use color_eyre::eyre::eyre;
@@ -9,7 +9,9 @@ use movy_replay::{
     env::SuiTestingEnv,
 };
 use movy_sui::{
-    compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit, rpc::graphql::GraphQlClient,
+    compile::SuiCompiledPackage,
+    database::{cache::ObjectSuiStoreCommit, graphql::GraphQlDatabase},
+    rpc::graphql::GraphQlClient,
 };
 use movy_types::{
     abi::{MoveModuleId, MovePackageAbi},
@@ -35,6 +37,33 @@ pub struct SuiTargetArgs {
     pub locals: Option<Vec<PathBuf>>,
     #[arg(long, help = "Trace movy_init")]
     pub trace_movy_init: bool,
+    #[arg(short, long, help = "Build package with unpublished dependencies")]
+    pub unpublished_dependencies: bool,
+    #[arg(long, help = "Disable building dependency checks")]
+    pub disable_dependency_checks: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeployResult {
+    pub target_packages_deployed: Vec<MoveAddress>,
+    pub abis: Vec<(MovePackageAbi, MovePackageAbi, Vec<String>)>,
+    pub name_mapping: BTreeMap<String, MoveAddress>,
+}
+
+impl Display for DeployResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Deployment(targets=[{}], mappings=[{}])",
+            self.target_packages_deployed
+                .iter()
+                .map(|v| v.to_string())
+                .join(", "),
+            self.name_mapping
+                .iter()
+                .map(|v| format!("{} => {}", v.0, v.1))
+                .join(", ")
+        ))
+    }
 }
 
 impl SuiTargetArgs {
@@ -56,15 +85,8 @@ impl SuiTargetArgs {
         deployer: MoveAddress,
         attacker: MoveAddress,
         gas: MoveAddress,
-        rpc: &GraphQlClient,
-    ) -> Result<
-        (
-            Vec<MoveAddress>,
-            Vec<(MovePackageAbi, MovePackageAbi, Vec<String>)>,
-            BTreeMap<String, MoveAddress>,
-        ),
-        MovyError,
-    >
+        rpc: &GraphQlDatabase,
+    ) -> Result<DeployResult, MovyError>
     where
         T: ObjectStoreCachedStore
             + ObjectStoreInfo
@@ -77,16 +99,17 @@ impl SuiTargetArgs {
     {
         let mut target_packages = Vec::new();
         let mut local_name_map = BTreeMap::new();
+
         for onchain in self.onchains.iter().flatten() {
-            tracing::info!("Deploying onchain address {} to env...", onchain);
-            env.deploy_address(*onchain).await?;
+            env.deploy_package_at_address((*onchain).into(), rpc)
+                .await?;
             target_packages.push(*onchain);
         }
 
         for hist in self.histories.iter().flatten() {
             // TODO: This is unsound.
             tracing::info!("Loading history objects for {} at {}", hist, checkpoint);
-            env.load_history(*hist, checkpoint, rpc).await?;
+            env.load_history(*hist, checkpoint, &rpc.graphql).await?;
         }
 
         tracing::info!("Loading inner types...");
@@ -103,7 +126,10 @@ impl SuiTargetArgs {
                     epoch,
                     epoch_ms,
                     gas.into(),
+                    self.unpublished_dependencies,
+                    !self.disable_dependency_checks,
                     self.trace_movy_init,
+                    rpc,
                 )
                 .await?;
             for name in package_names.iter() {
@@ -116,7 +142,11 @@ impl SuiTargetArgs {
         tracing::info!("Reload inner types...");
         env.load_inner_types().await?;
 
-        Ok((target_packages, local_abis, local_name_map))
+        Ok(DeployResult {
+            target_packages_deployed: target_packages,
+            abis: local_abis,
+            name_mapping: local_name_map,
+        })
     }
 }
 

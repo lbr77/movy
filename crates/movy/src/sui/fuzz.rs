@@ -27,8 +27,11 @@ use sui_types::base_types::ObjectID;
 use tracing::debug;
 
 use crate::sui::{
-    env::{FunctionSelector, FuzzTargetArgs, ModuleSelector, PackageSelector, SuiTargetArgs},
-    utils::{SuiOnchainArguments, may_save_bytes, may_save_json_value},
+    env::{
+        DeployResult, FunctionSelector, FuzzTargetArgs, ModuleSelector, PackageSelector,
+        SuiTargetArgs,
+    },
+    utils::{MovyInitRoles, RngSeed, SuiOnchainArguments, may_save_bytes, may_save_json_value},
 };
 
 fn resolve_modules(
@@ -103,20 +106,8 @@ fn resolve_type_tags(
 
 #[derive(Args, Clone, Debug, Serialize, Deserialize)]
 pub struct SuiFuzzArgs {
-    #[arg(
-        short,
-        long,
-        help = "deployer to use",
-        default_value = "0xb64151ee0dd0f7bab72df320c5f8e0c4b784958e7411a6c37d352fe9e176092f"
-    )]
-    pub deployer: MoveAddress,
-    #[arg(
-        short,
-        long,
-        help = "attacker to use",
-        default_value = "0xa773c4c5ef0b74150638fcfe8b0cd1bb3bbf6f1af963715168ad909bbaf2eddb"
-    )]
-    pub attacker: MoveAddress,
+    #[clap(flatten)]
+    pub roles: MovyInitRoles,
     #[arg(
         short,
         long,
@@ -126,8 +117,8 @@ pub struct SuiFuzzArgs {
     pub rpc: SuiGrpcArg,
     #[arg(long, help = "Time limit of the fuzzing campaign")]
     pub time_limit: Option<u64>,
-    #[arg(long, help = "rng seeds")]
-    pub seed: Option<u64>,
+    #[clap(flatten)]
+    pub seed: RngSeed,
     #[arg(short, long, help = "Ouput directory to save all contents")]
     pub output: Option<PathBuf>,
     #[arg(
@@ -183,24 +174,17 @@ impl SuiFuzzArgs {
             std::fs::create_dir_all(output)?;
         }
         may_save_json_value(&self.output, "args.json", &self)?;
-        let seed = if let Some(seed) = self.seed {
-            seed
-        } else {
-            random_seed()
-        };
-        let mut rand = SuperRand::new(seed);
+        let mut rand = self.seed.rng();
         let graphql = GraphQlClient::new_mystens();
+
         let _rpc = self.rpc.grpc().await?;
         let primitives = self
             .onchain
             .resolve_onchain_primitives(Some(&graphql))
             .await?;
-
+        let graphql_db = GraphQlDatabase::new_client(graphql.clone(), primitives.checkpoint);
         let inner = if self.graphql_deployment {
-            TrivialBackStore::T1(GraphQlDatabase::new_client(
-                graphql.clone(),
-                primitives.checkpoint,
-            ))
+            TrivialBackStore::T1(graphql_db.clone())
         } else {
             TrivialBackStore::T2(EmptyStore::default())
         };
@@ -208,7 +192,7 @@ impl SuiFuzzArgs {
         let gas_id = ObjectID::random_from_rng(&mut rand);
         env.mint_coin_id(
             MoveTypeTag::from_str("0x2::sui::SUI").unwrap(),
-            MoveOwner::AddressOwner(self.deployer),
+            MoveOwner::AddressOwner(self.roles.deployer),
             gas_id.into(),
             100_000_000_000,
         )?;
@@ -217,19 +201,24 @@ impl SuiFuzzArgs {
         testing_env.install_movy()?;
 
         // TODO: Drop dependency on graphql
-        let (target_packages, local_abis, mut local_name_map) = self
+        let DeployResult {
+            target_packages_deployed: target_packages,
+            abis: local_abis,
+            name_mapping: mut local_name_map,
+        } = self
             .target
             .build_env(
                 &testing_env,
                 primitives.checkpoint,
                 primitives.epoch,
                 primitives.epoch_ms,
-                self.deployer,
-                self.attacker,
+                self.roles.deployer,
+                self.roles.attacker,
                 gas_id.into(),
-                &graphql,
+                &graphql_db,
             )
             .await?;
+
         let mut abis = BTreeMap::new();
         let mut testing_abis = BTreeMap::new();
 
@@ -277,8 +266,8 @@ impl SuiFuzzArgs {
             rand,
             self.filters.privilege_functions.unwrap_or_default(),
             target_packages,
-            self.attacker,
-            self.deployer,
+            self.roles.attacker,
+            self.roles.deployer,
             gas_id.into(),
             abis,
             testing_abis,

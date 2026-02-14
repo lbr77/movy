@@ -1,9 +1,15 @@
-use std::{collections::BTreeSet, io::Write, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Display,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Flavor;
+use move_core_types::account_address::AccountAddress;
 use move_package::{
     resolution::resolution_graph::ResolvedGraph, source_package::layout::SourcePackageLayout,
 };
@@ -44,6 +50,29 @@ pub fn build_package_resolved(
     Ok((artifacts, resolution_graph))
 }
 
+pub fn mock_module_address(address: ObjectID, module: &mut CompiledModule) {
+    let sh = module.self_handle().clone();
+    let address_idx = sh.address;
+    let name = module.identifier_at(sh.name).to_string();
+    if let Some(addr) = module.address_identifiers.get_mut(address_idx.0 as usize) {
+        tracing::debug!(
+            "mocking module from {}:{} to {}:{}",
+            addr,
+            name,
+            address,
+            name
+        );
+        *addr = address.into();
+    } else {
+        tracing::warn!(
+            "module {} does not have self address?! {:?}, module {:?}",
+            name,
+            address_idx,
+            module
+        );
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuiCompiledPackage {
     pub package_id: ObjectID,
@@ -52,6 +81,27 @@ pub struct SuiCompiledPackage {
     modules: Vec<CompiledModule>,
     dependencies: Vec<ObjectID>,
     published_dependencies: Vec<ObjectID>,
+}
+
+impl Display for SuiCompiledPackage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Project(id={}, name={}, modules=[{}], deps=[{}])",
+            self.package_id,
+            self.package_name,
+            self.modules
+                .iter()
+                .map(|v| {
+                    let id = v.self_id();
+                    format!("{}:{}", id.address(), id.name().as_str())
+                })
+                .join(", "),
+            self.published_dependencies
+                .iter()
+                .map(|t| t.to_string())
+                .join(", ")
+        ))
+    }
 }
 
 impl SuiCompiledPackage {
@@ -64,9 +114,10 @@ impl SuiCompiledPackage {
     pub fn abi(&self) -> Result<MovePackageAbi, MovyError> {
         MovePackageAbi::from_sui_id_and_modules(self.package_id, self.all_modules_iter())
     }
-}
+    pub fn dependencies(&self) -> &Vec<ObjectID> {
+        &self.published_dependencies
+    }
 
-impl SuiCompiledPackage {
     pub fn test_modules(&self) -> Vec<&CompiledModule> {
         self.modules
             .iter()
@@ -136,11 +187,11 @@ impl SuiCompiledPackage {
         Ok(new_package)
     }
 
-    // This function builds all sui packages at a given folder, packaging all the
-    // unpublished dependencies together.
-    pub fn build_all_unpublished_from_folder(
+    pub fn build_checked(
         folder: &Path,
         test_mode: bool,
+        with_unpublished: bool,
+        verify_deps: bool,
     ) -> Result<SuiCompiledPackage, MovyError> {
         let (artifacts, _) = build_package_resolved(folder, test_mode)?;
         debug!(
@@ -154,12 +205,14 @@ impl SuiCompiledPackage {
             Err(PublishedAtError::NotPresent) => ObjectID::ZERO,
             _ => return Err(eyre!("Invalid published-at: {:?}", &artifacts.published_at).into()),
         };
-        debug!("Root address is {}", root_address);
         let package_name = artifacts
             .package
             .compiled_package_info
             .package_name
             .to_string();
+        let span = tracing::debug_span!("root", root=%root_address, pkg=package_name);
+        let _ = span.enter();
+
         let mut package_names = BTreeSet::new();
         package_names.insert(package_name.clone());
         for (dep_name, unit) in artifacts.package.deps_compiled_units.iter() {
@@ -169,15 +222,105 @@ impl SuiCompiledPackage {
             }
         }
         let package_names = package_names.into_iter().collect::<Vec<_>>();
-        let modules = artifacts
-            .package
-            .all_compiled_units()
-            .filter(|m| {
-                debug!("Compiled module address: {}", m.address.into_inner());
-                root_address == m.address.into_inner().into()
-            })
-            .map(|m| m.module.clone())
-            .collect::<Vec<_>>();
+
+        if verify_deps && !with_unpublished {
+            for (sym, md) in artifacts.package.deps_compiled_units.iter() {
+                let address = md.unit.address.into_inner();
+                if address == AccountAddress::ZERO {
+                    return Err(eyre!(
+                        "dependency {} does not have a published address and we are compiling _without_ bundling unpublished dependencies", sym.as_str()
+                    ).into());
+                }
+            }
+        }
+
+        let mut modules = if with_unpublished {
+            artifacts
+                .package
+                .all_compiled_units()
+                .filter(|m| {
+                    tracing::trace!("Compiled module address: {}", m.address.into_inner());
+                    root_address == m.address.into_inner().into()
+                        || m.address.into_inner() == AccountAddress::ZERO
+                })
+                .map(|m| m.module.clone())
+                .collect_vec()
+        } else {
+            artifacts
+                .package
+                .root_compiled_units
+                .into_iter()
+                .map(|u| u.unit.module)
+                .collect_vec()
+        };
+
+        if with_unpublished {
+            // Dependency linkage
+            // In real sui move, in case there are compiled modules with both non-zero id and zero id, it is considered
+            // as an upgrade operation and only zero id modules are preserved.
+            // We modify all addresse sand references to make it a publish operation
+            for md in modules.iter_mut() {
+                for (hd_idx, hd) in md.module_handles.clone().into_iter().enumerate() {
+                    let addr_idx = hd.address.0 as usize;
+                    let name = md.identifier_at(hd.name).to_string();
+                    let addr = *md.address_identifiers.get_mut(addr_idx).unwrap();
+
+                    if with_unpublished
+                        && addr == AccountAddress::ZERO
+                        && root_address != ObjectID::ZERO
+                    {
+                        tracing::debug!(
+                            "Mocking a bundled dependecy handle {}:{} ({}:{}) to {}:{}",
+                            addr,
+                            name,
+                            hd.address.0,
+                            hd.name.0,
+                            root_address,
+                            name
+                        );
+                        if let Some(t) = md
+                            .address_identifiers
+                            .iter()
+                            .position(|t| t == &root_address.into())
+                        {
+                            md.module_handles.get_mut(hd_idx).unwrap().address.0 = t as _;
+                        } else {
+                            *md.address_identifiers.get_mut(addr_idx).unwrap() =
+                                root_address.into();
+                        }
+                    }
+                }
+
+                // TODO: Remove unsued address identifiers (in most cases, 0x0)
+            }
+            // mock module self address
+            for md in modules.iter_mut() {
+                mock_module_address(root_address.into(), md);
+            }
+        }
+
+        if tracing::enabled!(tracing::Level::TRACE) {
+            for md in modules.iter() {
+                tracing::trace!("Module is {:?}", md);
+            }
+        }
+
+        if verify_deps && root_address != ObjectID::ZERO {
+            for md in modules.iter() {
+                for dep in md.immediate_dependencies() {
+                    let addr = *dep.address();
+                    if addr == AccountAddress::ZERO {
+                        return Err(eyre!(
+                            "module {}:{} still has 0x0 immediate dependency",
+                            dep.address(),
+                            dep.name().as_str()
+                        )
+                        .into());
+                    }
+                }
+            }
+        }
+
         if modules.is_empty() {
             return Err(eyre!(
                 "Compiling {} yields 0 modules for root {}",
@@ -186,18 +329,7 @@ impl SuiCompiledPackage {
             )
             .into());
         }
-        debug!("Package {} has {} modules", root_address, modules.len());
-        // let deps = modules
-        //     .iter()
-        //     .flat_map(|m| {
-        //         m.immediate_dependencies()
-        //             .iter()
-        //             .map(|m| m.address().to_owned().into())
-        //             .filter(|a| a != &root_address)
-        //             .collect::<Vec<_>>()
-        //     })
-        //     .chain(artifacts.dependency_ids.published.values().cloned())
-        //     .collect::<BTreeSet<ObjectID>>();
+        debug!("Package has {} modules", modules.len());
         let deps = artifacts
             .dependency_ids
             .published
@@ -223,6 +355,24 @@ impl SuiCompiledPackage {
                 .cloned()
                 .collect(),
         })
+    }
+
+    pub fn build(
+        folder: &Path,
+        test_mode: bool,
+        with_unpublished: bool,
+    ) -> Result<SuiCompiledPackage, MovyError> {
+        Self::build_checked(folder, test_mode, with_unpublished, true)
+    }
+
+    // This function builds all sui packages at a given folder, packaging all the
+    // unpublished dependencies together.
+    pub fn build_all_unpublished_from_folder(
+        folder: &Path,
+        test_mode: bool,
+    ) -> Result<SuiCompiledPackage, MovyError> {
+        // Legacy code path
+        Self::build(folder, test_mode, true)
     }
 
     pub fn build_quick(package: &str, module: &str, content: &str) -> Result<Self, MovyError> {

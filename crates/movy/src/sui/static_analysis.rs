@@ -16,7 +16,7 @@ use movy_types::{
 };
 use sui_types::base_types::ObjectID;
 
-use crate::sui::env::SuiTargetArgs;
+use crate::sui::env::{DeployResult, SuiTargetArgs};
 
 #[derive(Args)]
 pub struct SuiStaticAnalysisArgs {
@@ -56,7 +56,8 @@ impl SuiStaticAnalysisArgs {
         let epoch = ckpt_summary.epoch;
         let epoch_ms = ckpt_summary.timestamp_ms;
 
-        let env = CachedStore::new(GraphQlDatabase::new_client(graphql.clone(), checkpoint));
+        let graphql_db = GraphQlDatabase::new_client(graphql.clone(), checkpoint);
+        let env = CachedStore::new(graphql_db.clone());
         let gas_id = ObjectID::random_from_rng(&mut rand);
         env.mint_coin_id(
             MoveTypeTag::from_str("0x2::sui::SUI").unwrap(),
@@ -67,7 +68,10 @@ impl SuiStaticAnalysisArgs {
         let testing_env = SuiTestingEnv::new(env.wrapped());
         testing_env.mock_testing_std()?;
         testing_env.install_movy()?;
-        let (target_packages, _, _) = self
+        let DeployResult {
+            target_packages_deployed: target_packages,
+            ..
+        } = self
             .target
             .build_env(
                 &testing_env,
@@ -77,7 +81,7 @@ impl SuiStaticAnalysisArgs {
                 self.deployer,
                 self.deployer,
                 gas_id.into(),
-                &graphql,
+                &graphql_db,
             )
             .await?;
 

@@ -41,6 +41,10 @@ pub fn testing_proto() -> ProtocolConfig {
     ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Mainnet)
 }
 
+fn random_digest() -> TransactionDigest {
+    TransactionDigest::from_str("8thja5nUwaEw7L5ji9tnhCurpkjHdMunRffxwx1H9HsT").unwrap()
+}
+
 #[derive(Clone)]
 pub struct SuiExecutor<T> {
     pub db: T,
@@ -288,42 +292,12 @@ where
                 })
                 .join(",")
         );
-        // rebase to zero address as sui publish requires
-        // for it in modules.iter_mut() {
-        //     let self_handle = it.self_handle().clone();
-        //     if let Some(address_mut) = it
-        //         .address_identifiers
-        //         .get_mut(self_handle.address.0 as usize)
-        //         && *address_mut != AccountAddress::ZERO
-        //     {
-        //         *address_mut = AccountAddress::ZERO;
-        //     }
-
-        //     // TODO: Maybe unnecessary?
-        //     if package_id != ObjectID::ZERO {
-        //         for ident in it.address_identifiers.iter_mut() {
-        //             if ObjectID::from(*ident) == package_id {
-        //                 *ident = AccountAddress::ZERO;
-        //             }
-        //         }
-        //     }
-        // }
 
         if package_id == ObjectID::ZERO {
             // derive id
-            let id = ObjectID::derive_id(TransactionDigest::genesis_marker(), self.deploy_ids);
+            let id = ObjectID::derive_id(random_digest(), self.deploy_ids);
             self.deploy_ids += 1;
             substitute_package_id(&mut modules, id)?;
-        } else {
-            // ensure the modules has the expected id
-            for it in modules.iter_mut() {
-                let self_handle = it.self_handle().clone();
-                let self_address_idx = self_handle.address;
-
-                let addrs = &mut it.address_identifiers;
-                let address_mut = addrs.get_mut(self_address_idx.0 as usize).unwrap();
-                *address_mut = package_id.into();
-            }
         }
 
         let mut modules_bytes = vec![];
@@ -367,7 +341,7 @@ where
             self.db.commit_store(store, &effects)?;
             Ok(new_object.0)
         } else {
-            Err(eyre!("fail to deploy").into())
+            Err(eyre!("fail to deploy with {:?}", effects.status()).into())
         }
     }
 }

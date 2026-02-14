@@ -122,6 +122,10 @@ impl GraphQlDatabase {
         self.sinlge_object(objects_query::ObjectKey::at_checkpoint(object, checkpoint))
             .await
     }
+
+    pub async fn get_object(&self, object: ObjectID) -> Result<Option<Object>, MovyError> {
+        self.get_object_at_checkpoint(object, self.fork).await
+    }
 }
 
 impl sui_types::storage::ChildObjectResolver for GraphQlDatabase {
