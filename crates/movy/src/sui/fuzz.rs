@@ -285,6 +285,7 @@ impl SuiFuzzArgs {
             primitives.checkpoint,
             primitives.epoch,
             primitives.epoch_ms,
+            local_name_map.clone(),
             filters,
         )
         .await?;

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::BTreeMap, fmt::Display};
 
 use itertools::Itertools;
 use move_trace_format::{
@@ -17,14 +17,33 @@ pub struct FrameTraced {
 
 impl Display for FrameTraced {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.render_with_aliases(&BTreeMap::new()))
+    }
+}
+
+impl FrameTraced {
+    fn alias_type_tag(raw: String, aliases: &BTreeMap<String, String>) -> String {
+        aliases.iter().fold(raw, |acc, (addr, alias)| {
+            acc.replace(&format!("{}::", addr), &format!("{}::", alias))
+        })
+    }
+
+    fn render_with_aliases(&self, aliases: &BTreeMap<String, String>) -> String {
         let r = self
             .close
             .as_ref()
             .map(|v| v.iter().map(|t| t.to_string()).join(","))
             .unwrap_or_default();
-        f.write_fmt(format_args!(
+        let module_addr = self.open.module.address().to_canonical_string(true);
+        let package = if let Some(alias) = aliases.get(&module_addr) {
+            format!("{alias}")
+        } else {
+            module_addr
+        };
+
+        format!(
             "{}:{}:{}{}({}){}",
-            self.open.module.address().to_canonical_string(true),
+            package,
             self.open.module.name().as_str(),
             self.open.function_name,
             if !self.open.type_instantiation.is_empty() {
@@ -33,7 +52,7 @@ impl Display for FrameTraced {
                     self.open
                         .type_instantiation
                         .iter()
-                        .map(|v| v.to_canonical_string(true))
+                        .map(|v| Self::alias_type_tag(v.to_canonical_string(true), aliases))
                         .join(",")
                 )
             } else {
@@ -45,7 +64,35 @@ impl Display for FrameTraced {
             } else {
                 format!(" -> {}", r)
             }
-        ))
+        )
+    }
+
+    fn render_function_with_aliases(&self, aliases: &BTreeMap<String, String>) -> String {
+        let module_addr = self.open.module.address().to_canonical_string(true);
+        let package = if let Some(alias) = aliases.get(&module_addr) {
+            format!("{alias}")
+        } else {
+            module_addr
+        };
+
+        format!(
+            "{}::{}::{}{}",
+            package,
+            self.open.module.name().as_str(),
+            self.open.function_name,
+            if !self.open.type_instantiation.is_empty() {
+                format!(
+                    "<{}>",
+                    self.open
+                        .type_instantiation
+                        .iter()
+                        .map(|v| Self::alias_type_tag(v.to_canonical_string(true), aliases))
+                        .join(",")
+                )
+            } else {
+                "".to_string()
+            }
+        )
     }
 }
 
@@ -54,6 +101,7 @@ pub struct TreeTraceResult {
     calls: Vec<FrameTraced>,
     call_idxs: Vec<usize>,
     evs: Vec<TraceEvent>,
+    address_aliases: BTreeMap<String, String>,
 }
 
 impl TreeTraceResult {
@@ -79,22 +127,67 @@ impl TreeTraceResult {
         current
     }
 
-    fn pprint_child(calls: &Vec<FrameTraced>, tr: &mut ptree::TreeBuilder) {
+    pub fn set_address_aliases(&mut self, aliases: BTreeMap<String, String>) {
+        self.address_aliases = aliases;
+    }
+
+    fn pprint_child(
+        calls: &Vec<FrameTraced>,
+        aliases: &BTreeMap<String, String>,
+        tr: &mut ptree::TreeBuilder,
+    ) {
         for child in calls.iter() {
             if child.subcalls.is_empty() {
-                tr.add_empty_child(child.to_string());
+                tr.add_empty_child(child.render_with_aliases(aliases));
             } else {
-                tr.begin_child(child.to_string());
-                Self::pprint_child(&child.subcalls, tr);
+                tr.begin_child(child.render_with_aliases(aliases));
+                Self::pprint_child(&child.subcalls, aliases, tr);
                 tr.end_child();
             }
         }
     }
 
+    fn last_call_path(&self) -> Vec<&FrameTraced> {
+        let Some(mut current) = self.calls.last() else {
+            return vec![];
+        };
+        let mut path = vec![current];
+        while let Some(next) = current.subcalls.last() {
+            path.push(next);
+            current = next;
+        }
+        path
+    }
+
     pub fn pprint_call_tree(&self) -> ptree::TreeBuilder {
         let mut tr = ptree::TreeBuilder::new("calltree".to_string());
-        Self::pprint_child(&self.calls, &mut tr);
+        Self::pprint_child(&self.calls, &self.address_aliases, &mut tr);
         tr
+    }
+
+    pub fn pprint_to_error(&self) -> String {
+        let path = self.last_call_path();
+        if path.is_empty() {
+            return "-".to_string();
+        }
+
+        let mut tr = ptree::TreeBuilder::new("callpath".to_string());
+        for (idx, frame) in path.iter().enumerate() {
+            let node = frame.render_function_with_aliases(&self.address_aliases);
+            if idx + 1 == path.len() {
+                tr.add_empty_child(node);
+            } else {
+                tr.begin_child(node);
+            }
+        }
+        for _ in 0..path.len().saturating_sub(1) {
+            tr.end_child();
+        }
+
+        let mut buf = vec![];
+        let out = std::io::Cursor::new(&mut buf);
+        ptree::write_tree(&tr.build(), out).unwrap();
+        String::from_utf8(buf).unwrap()
     }
 
     pub fn pprint(&self) -> String {
@@ -120,6 +213,19 @@ impl TreeTracer {
         Self {
             inner: TreeTraceResult::default(),
         }
+    }
+
+    pub fn new_with_aliases(address_aliases: BTreeMap<String, String>) -> Self {
+        Self {
+            inner: TreeTraceResult {
+                address_aliases,
+                ..TreeTraceResult::default()
+            },
+        }
+    }
+
+    pub fn set_address_aliases(&mut self, aliases: BTreeMap<String, String>) {
+        self.inner.set_address_aliases(aliases);
     }
 
     pub fn take_inner(self) -> TreeTraceResult {

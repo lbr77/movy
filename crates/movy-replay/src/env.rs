@@ -161,15 +161,27 @@ impl<
         epoch_ms: u64,
         gas: ObjectID,
         trace_movy_init: bool,
-    ) -> Result<(MoveAddress, MovePackageAbi, MovePackageAbi, Vec<String>, BTreeMap<String, MoveAddress>), MovyError> {
+    ) -> Result<
+        (
+            MoveAddress,
+            MovePackageAbi,
+            MovePackageAbi,
+            Vec<String>,
+            BTreeMap<String, MoveAddress>,
+        ),
+        MovyError,
+    > {
         tracing::info!("Compiling {} with test mode...", path.display());
-        let mut compiled_result = SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
+        let mut compiled_result =
+            SuiCompiledPackage::build_all_unpublished_from_folder(path, true)?;
         compiled_result.ensure_immediate_deps();
         let root_package_name = compiled_result.package_name.clone();
         let package_names = compiled_result.package_names.clone();
         let mut package_name_map: BTreeMap<String, MoveAddress> = BTreeMap::new();
         for (dep_name, dep_id) in compiled_result.published_dep_ids() {
-            package_name_map.entry(dep_name.clone()).or_insert((*dep_id).into());
+            package_name_map
+                .entry(dep_name.clone())
+                .or_insert((*dep_id).into());
             package_name_map
                 .entry(dep_name.to_ascii_lowercase())
                 .or_insert((*dep_id).into());
@@ -211,7 +223,8 @@ impl<
                 dep_target_addr
             );
 
-            let mut dep_pkg = SuiCompiledPackage::new_unpublished(dep_name.clone(), modules.clone());
+            let mut dep_pkg =
+                SuiCompiledPackage::new_unpublished(dep_name.clone(), modules.clone());
             if !package_id_map.is_empty() {
                 dep_pkg.rewrite_deps_by_package_id(&package_id_map)?;
             }
@@ -269,6 +282,16 @@ impl<
         let address =
             executor.deploy_contract(epoch, epoch_ms, deployer.into(), gas, compiled_result)?;
         tracing::info!("publishing {} at {}", root_package_name, address);
+        for name in package_names.iter() {
+            package_name_map.insert(name.clone(), address.into());
+            package_name_map.insert(name.to_ascii_lowercase(), address.into());
+        }
+        let mut address_aliases: BTreeMap<String, String> = BTreeMap::new();
+        for (name, package_addr) in package_name_map.iter() {
+            address_aliases
+                .entry(package_addr.to_canonical_string(true))
+                .or_insert_with(|| name.clone());
+        }
 
         // In search of any deploy functions
         let mut abi = self.db.get_package_info(address.into())?.unwrap();
@@ -290,7 +313,7 @@ impl<
                 let ptb = builder.finish();
                 tracing::info!("Detected a {} at: {}", MOVY_INIT, md.module_id);
                 let tracer = if trace_movy_init {
-                    Some(TreeTracer::new())
+                    Some(TreeTracer::new_with_aliases(address_aliases.clone()))
                 } else {
                     None
                 };
@@ -303,7 +326,7 @@ impl<
                     tracer,
                 )?;
                 let trace = if let Some(tracer) = std::mem::take(&mut results.tracer) {
-                    Some(tracer.take_inner().pprint())
+                    Some(tracer.take_inner().pprint_to_error())
                 } else {
                     None
                 };
@@ -340,11 +363,13 @@ impl<
         }
         non_test_abi.published_at(address.into());
         abi.published_at(address.into());
-        for name in package_names.iter() {
-            package_name_map.insert(name.clone(), address.into());
-            package_name_map.insert(name.to_ascii_lowercase(), address.into());
-        }
-        Ok((address.into(), abi, non_test_abi, package_names, package_name_map))
+        Ok((
+            address.into(),
+            abi,
+            non_test_abi,
+            package_names,
+            package_name_map,
+        ))
     }
 
     pub async fn export_abi(&self) -> Result<BTreeMap<MoveAddress, MovePackageAbi>, MovyError> {

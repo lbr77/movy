@@ -17,6 +17,7 @@ use movy_replay::{
 };
 use movy_sui::database::cache::ObjectSuiStoreCommit;
 use movy_types::error::MovyError;
+use std::collections::BTreeMap;
 use sui_types::{
     effects::TransactionEffectsAPI,
     storage::{BackingPackageStore, BackingStore, ObjectStore},
@@ -48,7 +49,18 @@ where
 {
     let inner = env.into_inner();
     let executor = SuiExecutor::new(inner)?;
-    let tracer = if trace { Some(TreeTracer::new()) } else { None };
+    let tracer = if trace {
+        let mut address_aliases: BTreeMap<String, String> = BTreeMap::new();
+        // address -> package mapping
+        for (name, address) in meta.package_name_map.iter() {
+            address_aliases
+                .entry(address.to_canonical_string(true))
+                .or_insert_with(|| name.clone());
+        }
+        Some(TreeTracer::new_with_aliases(address_aliases))
+    } else {
+        None
+    };
     let out = executor.run_ptb_with_gas(
         seed.sequence.to_ptb()?,
         meta.epoch,

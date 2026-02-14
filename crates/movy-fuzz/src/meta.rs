@@ -499,6 +499,8 @@ pub struct FuzzMetadata {
     pub checkpoint: u64,
     pub epoch: u64,
     pub epoch_ms: u64,
+    #[serde(default)]
+    pub package_name_map: BTreeMap<String, MoveAddress>,
 }
 
 impl Deref for FuzzMetadata {
@@ -531,6 +533,7 @@ impl FuzzMetadata {
         checkpoint: u64,
         epoch: u64,
         epoch_ms: u64,
+        package_name_map: BTreeMap<String, MoveAddress>,
         filters: TargetFilters,
     ) -> Result<Self, MovyError>
     where
@@ -562,6 +565,7 @@ impl FuzzMetadata {
             checkpoint,
             epoch,
             epoch_ms,
+            package_name_map,
             filters,
         ))
     }
@@ -578,6 +582,7 @@ impl FuzzMetadata {
         checkpoint: u64,
         epoch: u64,
         epoch_ms: u64,
+        package_name_map: BTreeMap<String, MoveAddress>,
         filters: TargetFilters,
     ) -> Self {
         let specific_function_scores: BTreeMap<FunctionIdent, u64> = function_scores
@@ -619,6 +624,7 @@ impl FuzzMetadata {
             checkpoint,
             epoch,
             epoch_ms,
+            package_name_map,
         }
     }
 

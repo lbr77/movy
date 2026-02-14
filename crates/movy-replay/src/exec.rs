@@ -54,7 +54,6 @@ pub struct ExecutionResults {
     pub gas: SuiGasStatus,
 }
 
-
 pub struct ExecutionTracedResults<R> {
     pub results: ExecutionResults,
     pub tracer: Option<R>,
@@ -71,7 +70,9 @@ impl<T> SuiExecutor<T>
 where
     T: ObjectStore + BackingStore + ObjectSuiStoreCommit + ObjectStoreMintObject + ObjectStoreInfo,
 {
-    fn derive_package_id_from_module_ids(modules: &[move_binary_format::CompiledModule]) -> ObjectID {
+    fn derive_package_id_from_module_ids(
+        modules: &[move_binary_format::CompiledModule],
+    ) -> ObjectID {
         let mut module_ids = modules
             .iter()
             .map(|m| {
@@ -309,7 +310,10 @@ where
         Ok(())
     }
 
-    fn rewrite_modules_self_id(modules: &mut [move_binary_format::CompiledModule], package_id: ObjectID) {
+    fn rewrite_modules_self_id(
+        modules: &mut [move_binary_format::CompiledModule],
+        package_id: ObjectID,
+    ) {
         let new_addr = AccountAddress::from(package_id);
         for module in modules.iter_mut() {
             let old_self_addr = *module.address();
@@ -339,8 +343,7 @@ where
         if deps_before != dependencies {
             debug!(
                 "Expanded publish dependencies from {:?} to {:?}",
-                deps_before,
-                dependencies
+                deps_before, dependencies
             );
         }
         debug!(
@@ -384,7 +387,7 @@ where
             // force module self-address to the target package id
             Self::rewrite_modules_self_id(&mut modules, package_id);
         }
-        
+
         let mut modules_bytes = vec![];
         for module in &modules {
             let mut buf = vec![];
