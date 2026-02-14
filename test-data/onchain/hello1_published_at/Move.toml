@@ -1,0 +1,15 @@
+[package]
+name = "hello1"
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+# license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
+# authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
+published-at = "0x18f8f4ebada51361c6558c7cfa77cb46be72fca7caacc475dc828858becfaa75"
+
+[dependencies]
+
+[addresses]
+hello1 = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]
