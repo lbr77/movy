@@ -5,7 +5,6 @@ use color_eyre::eyre::eyre;
 use movy_fuzz::{
     meta::{FuzzMetadata, TargetFilters},
     operations::sui_fuzz,
-    utils::{SuperRand, random_seed},
 };
 use movy_replay::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo, ObjectStoreMintObject},
@@ -186,7 +185,7 @@ impl SuiFuzzArgs {
         let inner = if self.graphql_deployment {
             TrivialBackStore::T1(graphql_db.clone())
         } else {
-            TrivialBackStore::T2(EmptyStore::default())
+            TrivialBackStore::T2(EmptyStore)
         };
         let env = CachedStore::new(inner);
         let gas_id = ObjectID::random_from_rng(&mut rand);
@@ -291,7 +290,7 @@ impl SuiFuzzArgs {
                 primitives.checkpoint,
             ))
         } else {
-            TrivialBackStore::T2(EmptyStore::default())
+            TrivialBackStore::T2(EmptyStore)
         };
         let store = CachedStore::new(inner);
         store.restore_snapshot(dump);

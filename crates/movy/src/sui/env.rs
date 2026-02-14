@@ -11,7 +11,6 @@ use movy_replay::{
 use movy_sui::{
     compile::SuiCompiledPackage,
     database::{cache::ObjectSuiStoreCommit, graphql::GraphQlDatabase},
-    rpc::graphql::GraphQlClient,
 };
 use movy_types::{
     abi::{MoveModuleId, MovePackageAbi},
@@ -101,8 +100,7 @@ impl SuiTargetArgs {
         let mut local_name_map = BTreeMap::new();
 
         for onchain in self.onchains.iter().flatten() {
-            env.deploy_package_at_address((*onchain).into(), rpc)
-                .await?;
+            env.deploy_package_at_address((*onchain), rpc).await?;
             target_packages.push(*onchain);
         }
 

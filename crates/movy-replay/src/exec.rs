@@ -2,7 +2,6 @@ use std::{ops::Deref, str::FromStr, sync::Arc};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
-use move_core_types::account_address::AccountAddress;
 use move_trace_format::{format::MoveTraceBuilder, interface::Tracer};
 use move_vm_runtime::move_vm::MoveVM;
 use movy_sui::{compile::SuiCompiledPackage, database::cache::ObjectSuiStoreCommit};
@@ -288,7 +287,7 @@ where
                 .iter()
                 .map(|v| {
                     let id = v.self_id();
-                    format!("{}:{}", id.address().to_string(), id.name().to_string())
+                    format!("{}:{}", id.address(), id.name())
                 })
                 .join(",")
         );

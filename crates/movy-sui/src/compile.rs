@@ -1,9 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt::Display,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeSet, fmt::Display, io::Write, path::Path};
 
 use color_eyre::eyre::eyre;
 use itertools::Itertools;
@@ -295,7 +290,7 @@ impl SuiCompiledPackage {
             }
             // mock module self address
             for md in modules.iter_mut() {
-                mock_module_address(root_address.into(), md);
+                mock_module_address(root_address, md);
             }
         }
 

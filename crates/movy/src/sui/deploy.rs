@@ -1,9 +1,8 @@
-use std::{path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use clap::Args;
 use movy_replay::{db::ObjectStoreMintObject, env::SuiTestingEnv};
 use movy_sui::{
-    compile::SuiCompiledPackage,
     database::{cache::CachedStore, empty::EmptyStore, graphql::GraphQlDatabase},
     rpc::graphql::GraphQlClient,
     utils::TrivialBackStore,
@@ -43,7 +42,7 @@ impl SuiBuildDeployArgs {
         let inner = if self.graphql {
             TrivialBackStore::T1(gdb.clone())
         } else {
-            TrivialBackStore::T2(EmptyStore::default())
+            TrivialBackStore::T2(EmptyStore)
         };
         let env = CachedStore::new(inner);
         let gas_id = ObjectID::random_from_rng(&mut rand);

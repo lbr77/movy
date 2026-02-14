@@ -31,7 +31,7 @@ use sui_types::{
 use crate::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo},
     exec::SuiExecutor,
-    tracer::{NopTracer, tree::TreeTracer},
+    tracer::tree::TreeTracer,
 };
 
 pub struct SuiTestingEnv<T> {
@@ -202,11 +202,8 @@ impl<
                     gas,
                     tracer,
                 )?;
-                let trace = if let Some(tracer) = std::mem::take(&mut results.tracer) {
-                    Some(tracer.take_inner().pprint())
-                } else {
-                    None
-                };
+                let trace =
+                    std::mem::take(&mut results.tracer).map(|tracer| tracer.take_inner().pprint());
                 if !results.effects.status().is_ok() {
                     if let Some(trace) = trace {
                         tracing::error!("movy_init reverts with:\n{}", trace);

@@ -22,10 +22,10 @@ impl CheatBackendInner {
 
         for (id, mp) in storage.objects.iter() {
             for (_, obj) in mp.iter() {
-                if let Some(obj) = obj {
-                    if let Some(ty) = obj.type_() {
-                        tys.entry(ty.clone()).or_default().insert(*id);
-                    }
+                if let Some(obj) = obj
+                    && let Some(ty) = obj.type_()
+                {
+                    tys.entry(ty.clone()).or_default().insert(*id);
                 }
             }
         }
