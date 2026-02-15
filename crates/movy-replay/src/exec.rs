@@ -307,8 +307,24 @@ where
         // }
 
         if package_id == ObjectID::ZERO {
-            // derive id
-            let id = ObjectID::derive_id(digest, creation_num);
+            // Derive the package id from the digest of the publish transaction.
+            let mut module_bytes = vec![];
+            for module in &modules {
+                let mut buf = vec![];
+                module.serialize_with_version(module.version, &mut buf)?;
+                module_bytes.push(buf);
+            }
+            let preview_ptb = ProgrammableTransaction {
+                inputs: vec![CallArg::Pure(bcs::to_bytes(&admin)?)],
+                commands: vec![
+                    Command::Publish(module_bytes, dependencies.clone()),
+                    Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(0)),
+                ],
+            };
+            let gas_ref = self.db.get_move_object_info(gas.into())?.sui_reference();
+            let tx_kind = TransactionKind::ProgrammableTransaction(preview_ptb);
+            let tx_data = TransactionData::new(tx_kind, admin, gas_ref, 1_000_000_000, 1);
+            let id = ObjectID::derive_id(tx_data.digest(), 0);
             substitute_package_id(&mut modules, id)?;
         } else {
             // ensure the modules has the expected id

@@ -145,7 +145,7 @@ where
         + ObjectStoreMintObject
         + ObjectStoreInfo
         + Clone
-        + 'static
+        + 'static,
     E: ObjectStore,
     OT: ObserversTuple<I, S>,
     RT: for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>,
@@ -241,10 +241,8 @@ where
         };
 
         if tracing::enabled!(tracing::Level::DEBUG) {
-        if tracing::enabled!(tracing::Level::DEBUG) {
             for ev in events.iter() {
                 if let Some((st, ev)) = state.fuzz_state().decode_sui_event(ev)? {
-                    tracing::debug!(
                     tracing::debug!(
                         "Event: {}({})",
                         st.to_canonical_string(true),
@@ -252,7 +250,6 @@ where
                             .unwrap_or_else(|e| format!("json err({}): {:?}", e, ev))
                     );
                 } else {
-                    tracing::debug!(
                     tracing::debug!(
                         "Event {} missing for decoding",
                         ev.type_.to_canonical_string(true)

@@ -255,7 +255,7 @@ where
                 // self.module_stack = Some((address, name));
                 self.module_stack.push((address, name));
                 if let Err(e) = self.notifier.notify_event(event) {
-                    log::error!("NotifierTracer: failed to notify OpenFrame: {:?}", e);
+                    tracing::error!("NotifierTracer: failed to notify OpenFrame: {:?}", e);
                 }
             }
 
@@ -267,7 +267,7 @@ where
                 // self.module_stack = None;
                 self.module_stack.pop();
                 if let Err(e) = self.notifier.notify_event(event) {
-                    log::error!("NotifierTracer: failed to notify CloseFrame: {:?}", e);
+                    tracing::error!("NotifierTracer: failed to notify CloseFrame: {:?}", e);
                 }
             }
 
@@ -277,19 +277,19 @@ where
                     .notifier
                     .handle_before_instruction(event, extra.as_ref())
                 {
-                    log::error!(
+                    tracing::error!(
                         "NotifierTracer: failed to handle before instruction: {:?}",
                         e
                     );
                 }
                 if let Err(e) = self.notifier.notify_event(event) {
-                    log::error!("NotifierTracer: failed to notify Instruction: {:?}", e);
+                    tracing::error!("NotifierTracer: failed to notify Instruction: {:?}", e);
                 }
             }
 
             _ => {
                 if let Err(e) = self.notifier.notify_event(event) {
-                    log::error!("NotifierTracer: failed to notify event: {:?}", e);
+                    tracing::error!("NotifierTracer: failed to notify event: {:?}", e);
                 }
             }
         }
