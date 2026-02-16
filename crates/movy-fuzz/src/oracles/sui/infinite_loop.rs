@@ -38,10 +38,10 @@ impl<S> SuiGeneralOracle<S> for InfiniteLoopOracle {
         &mut self,
         pc: u16,
         instruction: &Bytecode,
-        trace_state: &movy_replay::tracer::state::TraceState,
+        _trace_state: &movy_replay::tracer::state::TraceState,
         symbol_stack: &ConcolicState,
         current_function: &movy_types::input::FunctionIdent,
-        state: &mut S,
+        _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         match instruction {
             Bytecode::BrFalse(_) | Bytecode::BrTrue(_) => {

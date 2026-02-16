@@ -1,7 +1,6 @@
 use move_binary_format::file_format::Bytecode;
 use move_core_types::u256::U256;
-use move_trace_format::format::{TraceEvent, TraceValue};
-use move_vm_stack::Stack;
+use move_trace_format::format::TraceValue;
 use serde_json::json;
 
 use movy_replay::tracer::{
@@ -10,10 +9,8 @@ use movy_replay::tracer::{
 };
 use movy_types::{
     error::MovyError,
-    input::MoveSequence,
     oracle::{OracleFinding, Severity},
 };
-use sui_types::effects::TransactionEffects;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OverflowOracle;
@@ -34,9 +31,9 @@ impl<S> SuiGeneralOracle<S> for OverflowOracle {
         pc: u16,
         instruction: &Bytecode,
         trace_state: &movy_replay::tracer::state::TraceState,
-        symbol_stack: &ConcolicState,
+        _symbol_stack: &ConcolicState,
         current_function: &movy_types::input::FunctionIdent,
-        state: &mut S,
+        _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         if !matches!(instruction, Bytecode::Shl) {
             return Ok(vec![]);

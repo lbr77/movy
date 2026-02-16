@@ -154,16 +154,17 @@ impl<
         let compiled_result = compiled_result.movy_mock()?;
 
         // Deploy onchain deps or deps used by immediate dependencies
-        for dep in abi_result.dependencies().iter().map(|v| v.clone()).chain(
+        for dep in
             abi_result
-                .all_modules_iter()
-                .map(|t| {
+                .dependencies()
+                .iter()
+                .copied()
+                .chain(abi_result.all_modules_iter().flat_map(|t| {
                     t.immediate_dependencies()
                         .into_iter()
                         .map(|im| (*im.address()).into())
-                })
-                .flatten(),
-        ) {
+                }))
+        {
             let dep = AccountAddress::from(dep);
 
             if dep != AccountAddress::ZERO && self.db.get_object(&dep.into()).is_none() {

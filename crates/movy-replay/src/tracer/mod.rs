@@ -85,7 +85,7 @@ impl<T: MovySuiTracerExt> Tracer for MovySuiTracerWrapper<T> {
                 gas_left,
             } => {
                 self.tracer
-                    .close_frame(&self.state, *frame_id, &return_, *gas_left);
+                    .close_frame(&self.state, *frame_id, return_, *gas_left);
                 self.state.apply_event(event);
             }
             TraceEvent::Effect(e) => {

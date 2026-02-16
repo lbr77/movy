@@ -1,8 +1,8 @@
-use move_binary_format::{CompiledModule, file_format::Bytecode};
+use move_binary_format::file_format::Bytecode;
 use movy_types::abi::MoveModuleId;
-use sui_types::{base_types::ObjectID, storage::BackingPackageStore};
+use sui_types::base_types::ObjectID;
 
-use crate::tracer::fuzz::{PackageResolvedCache, PackageResolver};
+use crate::tracer::fuzz::PackageResolvedCache;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum InstructionExtraInformation {
@@ -35,7 +35,7 @@ impl InstructionExtraInformation {
                     StructFieldInformation::Native => 0,
                     StructFieldInformation::Declared(fields) => fields.len(),
                 };
-                extra = Some(InstructionExtraInformation::Unpack(field_count as usize));
+                extra = Some(InstructionExtraInformation::Unpack(field_count));
             }
             B::UnpackVariant(vidx)
             | B::UnpackVariantImmRef(vidx)
@@ -45,9 +45,7 @@ impl InstructionExtraInformation {
                 let variant_def =
                     module.variant_def_at(variant_handle.enum_def, variant_handle.variant);
                 let field_count = variant_def.fields.len();
-                extra = Some(InstructionExtraInformation::UnpackVariant(
-                    field_count as usize,
-                ));
+                extra = Some(InstructionExtraInformation::UnpackVariant(field_count));
             }
             B::UnpackGeneric(sidx) => {
                 let module = resolver.module_ref(module_id, package_id)?;
@@ -57,9 +55,7 @@ impl InstructionExtraInformation {
                     StructFieldInformation::Native => 0,
                     StructFieldInformation::Declared(fields) => fields.len(),
                 };
-                extra = Some(InstructionExtraInformation::UnpackGeneric(
-                    field_count as usize,
-                ));
+                extra = Some(InstructionExtraInformation::UnpackGeneric(field_count));
             }
             B::UnpackVariantGeneric(vidx)
             | B::UnpackVariantGenericImmRef(vidx)
@@ -70,7 +66,7 @@ impl InstructionExtraInformation {
                 let variant_def = module.variant_def_at(enum_inst.def, variant_inst_handle.variant);
                 let field_count = variant_def.fields.len();
                 extra = Some(InstructionExtraInformation::UnpackVariantGeneric(
-                    field_count as usize,
+                    field_count,
                 ));
             }
             B::Pack(sidx) => {
@@ -80,7 +76,7 @@ impl InstructionExtraInformation {
                     StructFieldInformation::Native => 0,
                     StructFieldInformation::Declared(fields) => fields.len(),
                 };
-                extra = Some(InstructionExtraInformation::Pack(field_count as usize));
+                extra = Some(InstructionExtraInformation::Pack(field_count));
             }
             B::PackGeneric(sidx) => {
                 let module = resolver.module_ref(module_id, package_id)?;
@@ -90,9 +86,7 @@ impl InstructionExtraInformation {
                     StructFieldInformation::Native => 0,
                     StructFieldInformation::Declared(fields) => fields.len(),
                 };
-                extra = Some(InstructionExtraInformation::PackGeneric(
-                    field_count as usize,
-                ));
+                extra = Some(InstructionExtraInformation::PackGeneric(field_count));
             }
             B::PackVariant(vidx) => {
                 let module = resolver.module_ref(module_id, package_id)?;
@@ -100,9 +94,7 @@ impl InstructionExtraInformation {
                 let variant_def =
                     module.variant_def_at(variant_handle.enum_def, variant_handle.variant);
                 let field_count = variant_def.fields.len();
-                extra = Some(InstructionExtraInformation::PackVariant(
-                    field_count as usize,
-                ));
+                extra = Some(InstructionExtraInformation::PackVariant(field_count));
             }
             B::PackVariantGeneric(vidx) => {
                 let module = resolver.module_ref(module_id, package_id)?;
@@ -110,9 +102,7 @@ impl InstructionExtraInformation {
                 let enum_inst = module.enum_instantiation_at(variant_inst_handle.enum_def);
                 let variant_def = module.variant_def_at(enum_inst.def, variant_inst_handle.variant);
                 let field_count = variant_def.fields.len();
-                extra = Some(InstructionExtraInformation::PackVariantGeneric(
-                    field_count as usize,
-                ));
+                extra = Some(InstructionExtraInformation::PackVariantGeneric(field_count));
             }
             _ => {}
         }

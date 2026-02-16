@@ -30,7 +30,7 @@ use movy_replay::env::SuiTestingEnv;
 use movy_replay::exec::SuiExecutor;
 use movy_replay::tracer::fuzz::PackageResolvedCache;
 use movy_replay::tracer::oracle::{CouldDisabledOralce, SuiGeneralOracle};
-use movy_sui::database::cache::{CachedStore, ObjectSuiStoreCommit};
+use movy_sui::database::cache::ObjectSuiStoreCommit;
 use movy_types::error::MovyError;
 use sui_types::storage::BackingStore;
 use sui_types::storage::{BackingPackageStore, ObjectStore};
@@ -217,10 +217,10 @@ where
             }
         }
 
-        if let Some(climit) = cycles_limit {
-            if cycle >= climit {
-                break;
-            }
+        if let Some(climit) = cycles_limit
+            && cycle >= climit
+        {
+            break;
         }
 
         if let Err(e) = fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr) {

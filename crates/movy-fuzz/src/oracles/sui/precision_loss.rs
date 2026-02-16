@@ -1,13 +1,10 @@
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
 use serde_json::json;
 
 use movy_replay::tracer::{
     concolic::{ConcolicState, SymbolValue},
     oracle::SuiGeneralOracle,
 };
-use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};
-use sui_types::effects::TransactionEffects;
+use movy_types::{error::MovyError, oracle::OracleFinding};
 use z3::ast::Ast;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -18,10 +15,10 @@ impl<S> SuiGeneralOracle<S> for PrecisionLossOracle {
         &mut self,
         pc: u16,
         instruction: &move_binary_format::file_format::Bytecode,
-        trace_state: &movy_replay::tracer::state::TraceState,
+        _trace_state: &movy_replay::tracer::state::TraceState,
         symbol_stack: &ConcolicState,
         current_function: &movy_types::input::FunctionIdent,
-        state: &mut S,
+        _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         let loss = match instruction {
             move_binary_format::file_format::Bytecode::Mul => {

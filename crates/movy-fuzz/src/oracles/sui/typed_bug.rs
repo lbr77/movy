@@ -1,9 +1,7 @@
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
 use tracing::{debug, trace};
 
-use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
-use movy_types::{error::MovyError, input::MoveSequence, oracle::OracleFinding};
+use movy_replay::tracer::oracle::SuiGeneralOracle;
+use movy_types::{error::MovyError, oracle::OracleFinding};
 use serde_json::json;
 use sui_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},

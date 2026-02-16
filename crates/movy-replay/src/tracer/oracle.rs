@@ -1,5 +1,5 @@
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::format::{Frame, TraceEvent};
+use move_trace_format::format::Frame;
 use movy_types::{
     error::MovyError,
     input::{FunctionIdent, MoveSequence},
@@ -12,41 +12,41 @@ use crate::tracer::{concolic::ConcolicState, state::TraceState};
 pub trait SuiGeneralOracle<S> {
     fn pre_execution<T: ObjectStore>(
         &mut self,
-        db: T,
-        state: &mut S,
-        sequence: &MoveSequence,
+        _db: T,
+        _state: &mut S,
+        _sequence: &MoveSequence,
     ) -> Result<(), MovyError> {
         Ok(())
     }
 
     fn open_frame(
         &mut self,
-        frame: &Box<Frame>,
-        trace_state: &TraceState,
-        symbol_stack: &ConcolicState,
-        current_function: &FunctionIdent,
-        state: &mut S,
+        _frame: &Box<Frame>,
+        _trace_state: &TraceState,
+        _symbol_stack: &ConcolicState,
+        _current_function: &FunctionIdent,
+        _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(vec![])
     }
 
     fn before_instruction(
         &mut self,
-        pc: u16,
-        bytecode: &Bytecode,
-        trace_state: &TraceState,
-        symbol_stack: &ConcolicState,
-        current_function: &FunctionIdent,
-        state: &mut S,
+        _pc: u16,
+        _bytecode: &Bytecode,
+        _trace_state: &TraceState,
+        _symbol_stack: &ConcolicState,
+        _current_function: &FunctionIdent,
+        _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(vec![])
     }
 
     fn done_execution<T: ObjectStore>(
         &mut self,
-        db: T,
-        state: &mut S,
-        effects: &TransactionEffects,
+        _db: T,
+        _state: &mut S,
+        _effects: &TransactionEffects,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(vec![])
     }

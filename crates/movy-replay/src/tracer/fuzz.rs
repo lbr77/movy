@@ -1,22 +1,15 @@
-use std::{borrow::Cow, collections::BTreeMap, marker::PhantomData};
+use std::{borrow::Cow, collections::BTreeMap};
 
 use color_eyre::eyre::eyre;
 use libafl::{executors::ExitKind, observers::StdMapObserver};
 use libafl_bolts::tuples::{Handle, MatchName, MatchNameRef};
 use move_binary_format::{CompiledModule, file_format::Bytecode};
-use move_core_types::language_storage::ModuleId;
-use move_trace_format::{
-    format::{Effect, Frame, TraceEvent, TraceValue},
-    interface::Tracer,
-};
-use move_vm_stack::Stack;
-use move_vm_types::values::IntegerValue;
-use movy_sui::database::cache::CachedStore;
+use move_trace_format::format::{Effect, TraceEvent, TraceValue};
 use movy_types::{
     abi::MoveModuleId, error::MovyError, input::FunctionIdent, oracle::OracleFinding,
 };
 use sui_types::{base_types::ObjectID, storage::BackingPackageStore};
-use tracing::{instrument, trace, warn};
+use tracing::warn;
 
 use crate::tracer::{
     MovySuiTracerExt,
@@ -38,10 +31,7 @@ impl PackageResolvedCache {
         module_id: &MoveModuleId,
         package_id: &ObjectID,
     ) -> Option<&CompiledModule> {
-        self.packages
-            .get(package_id)
-            .map(|v| v.get(module_id))
-            .flatten()
+        self.packages.get(package_id).and_then(|v| v.get(module_id))
     }
 }
 pub struct PackageResolver<T> {
@@ -53,7 +43,7 @@ impl<T: BackingPackageStore> PackageResolver<T> {
     pub fn may_load_package(&mut self, package_id: &ObjectID) -> Result<(), MovyError> {
         if !self.cache.packages.contains_key(package_id) {
             if let Some(package) = self.db.get_package_object(package_id)? {
-                for (_, md) in package.move_package().serialized_module_map() {
+                for md in package.move_package().serialized_module_map().values() {
                     let module = CompiledModule::deserialize_with_defaults(md)?;
                     let id = module.self_id();
                     self.cache
@@ -252,18 +242,14 @@ where
             tracing::warn!("no current function in before_instruction?!");
         };
 
-        let extra = self
-            .current_functions
-            .last()
-            .map(|(pkg, md)| {
-                InstructionExtraInformation::from_resolver(
-                    instruction,
-                    &self.resolver.cache,
-                    pkg,
-                    &md.0,
-                )
-            })
-            .flatten();
+        let extra = self.current_functions.last().and_then(|(pkg, md)| {
+            InstructionExtraInformation::from_resolver(
+                instruction,
+                &self.resolver.cache,
+                pkg,
+                &md.0,
+            )
+        });
 
         let constraint = if !self.skip_concolic {
             self.outcome
@@ -387,10 +373,10 @@ fn format_event(ev: &TraceEvent) -> String {
             format!("Instruction(pc={}, instruction={:?})", *pc, instruction)
         }
         TraceEvent::Effect(e) => {
-            format!("Effect({})", e.to_string())
+            format!("Effect({})", e)
         }
         TraceEvent::External(ext) => {
-            format!("External({})", ext.to_string())
+            format!("External({})", ext)
         }
         _ => "-".to_string(),
     }

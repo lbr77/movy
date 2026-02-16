@@ -1,11 +1,7 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
-use move_trace_format::{
-    format::{Frame, TraceEvent, TraceValue},
-    interface::Tracer,
-};
-use move_vm_stack::Stack;
+use move_trace_format::format::{Frame, TraceEvent, TraceValue};
 use tracing::warn;
 
 use crate::tracer::{MovySuiTracerExt, state::TraceState};

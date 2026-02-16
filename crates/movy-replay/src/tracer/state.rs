@@ -26,7 +26,7 @@ pub fn format_trace_value(val: &TraceValue) -> String {
             location: _,
             snapshot,
         } => {
-            format!("TraceValue(&{})", format_serializable_move_value(&snapshot))
+            format!("TraceValue(&{})", format_serializable_move_value(snapshot))
         }
         TraceValue::MutRef {
             location: _,
@@ -34,7 +34,7 @@ pub fn format_trace_value(val: &TraceValue) -> String {
         } => {
             format!(
                 "TraceValue(&mut {})",
-                format_serializable_move_value(&snapshot)
+                format_serializable_move_value(snapshot)
             )
         }
     }
@@ -97,10 +97,7 @@ impl TraceState {
     pub fn operand_stack_debug(&self) -> String {
         format!(
             "OperandStack([{}])",
-            self.operand_stack
-                .iter()
-                .map(|v| format_trace_value(v))
-                .join(", ")
+            self.operand_stack.iter().map(format_trace_value).join(", ")
         )
     }
 

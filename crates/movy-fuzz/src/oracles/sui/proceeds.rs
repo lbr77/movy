@@ -3,11 +3,9 @@ use std::{
     ops::Neg,
 };
 
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
 use tracing::debug;
 
-use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
+use movy_replay::tracer::oracle::SuiGeneralOracle;
 use movy_types::{
     error::MovyError,
     input::{InputArgument, MoveSequence, SuiObjectInputArgument},

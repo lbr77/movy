@@ -364,7 +364,7 @@ impl ConcolicState {
         true
     }
 
-    pub fn on_open_frame_inner(&mut self, frame: &Box<Frame>, trace_state: &TraceState) {
+    pub fn on_open_frame_inner(&mut self, frame: &Box<Frame>, _trace_state: &TraceState) {
         let param_count = frame.parameters.len();
         if self.locals.is_empty() {
             let mut locals = if frame.locals_types.is_empty() {

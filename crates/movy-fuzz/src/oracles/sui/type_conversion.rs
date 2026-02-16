@@ -1,14 +1,10 @@
 use move_binary_format::file_format::Bytecode;
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
-use movy_types::input::MoveSequence;
 use movy_types::oracle::OracleFinding;
 use serde_json::json;
 
 use movy_replay::tracer::concolic::value_bitwidth;
 use movy_replay::tracer::{concolic::ConcolicState, oracle::SuiGeneralOracle};
 use movy_types::error::MovyError;
-use sui_types::effects::TransactionEffects;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct TypeConversionOracle;
@@ -19,12 +15,12 @@ impl<S> SuiGeneralOracle<S> for TypeConversionOracle {
         pc: u16,
         instruction: &Bytecode,
         trace_state: &movy_replay::tracer::state::TraceState,
-        symbol_stack: &ConcolicState,
+        _symbol_stack: &ConcolicState,
         current_function: &movy_types::input::FunctionIdent,
-        state: &mut S,
+        _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         let stack = &trace_state.operand_stack;
-        if stack.len() < 1 {
+        if stack.is_empty() {
             return Ok(vec![]);
         }
         let val = &stack[stack.len() - 1];
