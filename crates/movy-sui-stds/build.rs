@@ -25,28 +25,28 @@ fn build_movy(dir: &Path) -> SuiCompiledPackage {
 
 fn build_std(dir: &Path, test: bool) -> Vec<SuiCompiledPackage> {
     clear_build(dir);
-    let (_, resolved) = build_package_resolved(dir, test).unwrap();
+    // let (_, resolved) = build_package_resolved(dir, test).unwrap();
     let flag = if test { "testing" } else { "non-testing" };
     let mut deps = vec![];
-    for (package_name, package) in resolved.package_table.iter() {
-        if package_name.as_str() != "hello_std" {
-            cargo_print!(
-                "Building {} std {} at {}",
-                flag,
-                package_name.as_str(),
-                package.package_path.display()
-            );
+    // for (package_name, package) in resolved.package_table.iter() {
+    //     if package_name.as_str() != "hello_std" {
+    //         cargo_print!(
+    //             "Building {} std {} at {}",
+    //             flag,
+    //             package_name.as_str(),
+    //             package.package_path.display()
+    //         );
 
-            let out =
-                SuiCompiledPackage::build_all_unpublished_from_folder(&package.package_path, test)
-                    .unwrap();
-            let build_directory = package.package_path.join("build");
-            if build_directory.exists() {
-                std::fs::remove_dir_all(&build_directory).unwrap();
-            }
-            deps.push(out);
-        }
-    }
+    //         let out =
+    //             SuiCompiledPackage::build_all_unpublished_from_folder(&package.package_path, test)
+    //                 .unwrap();
+    //         let build_directory = package.package_path.join("build");
+    //         if build_directory.exists() {
+    //             std::fs::remove_dir_all(&build_directory).unwrap();
+    //         }
+    //         deps.push(out);
+    //     }
+    // }
     deps
 }
 

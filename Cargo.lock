@@ -219,7 +219,7 @@ dependencies = [
 [[package]]
 name = "anemo"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=9c52c3c7946532163a79129db15180cdb984bab4#9c52c3c7946532163a79129db15180cdb984bab4"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=4b5f0f1d06a31c8ef78ec2e5b446bc633e4e2f77#4b5f0f1d06a31c8ef78ec2e5b446bc633e4e2f77"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -254,7 +254,7 @@ dependencies = [
 [[package]]
 name = "anemo-tower"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=9c52c3c7946532163a79129db15180cdb984bab4#9c52c3c7946532163a79129db15180cdb984bab4"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=4b5f0f1d06a31c8ef78ec2e5b446bc633e4e2f77#4b5f0f1d06a31c8ef78ec2e5b446bc633e4e2f77"
 dependencies = [
  "anemo",
  "bytes",
@@ -352,6 +352,12 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 dependencies = [
  "backtrace",
 ]
+
+[[package]]
+name = "append-only-vec"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2114736faba96bcd79595c700d03183f61357b9fbce14852515e59f3bee4ed4a"
 
 [[package]]
 name = "ar_archive_writer"
@@ -1022,9 +1028,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bimap"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
+
+[[package]]
 name = "bin-version"
-version = "1.60.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "const-str 0.5.7",
  "git-version",
@@ -1357,6 +1369,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "bulletproofs"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "012e2e5f88332083bd4235d445ae78081c00b2558443821a9ca5adfe1070073d"
+dependencies = [
+ "byteorder",
+ "clear_on_drop",
+ "curve25519-dalek",
+ "digest 0.10.7",
+ "group 0.13.0",
+ "merlin",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_derive",
+ "sha3 0.10.8",
+ "subtle",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1562,6 +1595,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 
 [[package]]
+name = "clear_on_drop"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38508a63f4979f0048febc9966fadbd48e5dab31fd0ec6a3f151bbf4a74f7423"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1682,7 +1724,7 @@ checksum = "75984efb6ed102a0d42db99afb6c1948f0380d1d91808d5529916e6c08b49d8d"
 [[package]]
 name = "consensus-config"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "fastcrypto",
  "mysten-network",
@@ -1694,7 +1736,7 @@ dependencies = [
 [[package]]
 name = "consensus-types"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "base64 0.21.7",
  "consensus-config",
@@ -1998,6 +2040,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve25519-dalek"
+version = "4.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "curve25519-dalek-derive",
+ "digest 0.10.7",
+ "fiat-crypto",
+ "group 0.13.0",
+ "rand_core 0.6.4",
+ "rustc_version 0.4.1",
+ "serde",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2298,6 +2370,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-where"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef941ded77d15ca19b40374869ac6000af1c9f2a4c0f3d4c70926287e6364a8f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2560,6 +2643,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519-dalek"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
+dependencies = [
+ "curve25519-dalek",
+ "ed25519",
+ "serde",
+ "sha2 0.10.9",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "educe"
 version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2673,7 +2770,7 @@ checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 [[package]]
 name = "enum-compat-util"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "serde_yaml",
 ]
@@ -2829,13 +2926,14 @@ checksum = "18c1ddb9231d8554c2d6bdf4cfaabf0c59251658c68b6c95cd52dd0c513a912a"
 dependencies = [
  "getrandom 0.3.4",
  "libm",
+ "rand 0.9.2",
  "siphasher",
 ]
 
 [[package]]
 name = "fastcrypto"
 version = "0.1.9"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=09f86974195ec85d8aae386b1909d341d3ccfe52#09f86974195ec85d8aae386b1909d341d3ccfe52"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=d2e2d13be3e550745739144e2a090b9675e4ffcb#d2e2d13be3e550745739144e2a090b9675e4ffcb"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -2853,9 +2951,10 @@ dependencies = [
  "blake2",
  "blst",
  "bs58 0.4.0",
+ "bulletproofs",
  "cbc",
  "ctr",
- "curve25519-dalek-ng",
+ "curve25519-dalek",
  "derive_more 0.99.20",
  "digest 0.10.7",
  "ecdsa 0.16.9",
@@ -2867,6 +2966,7 @@ dependencies = [
  "hex-literal",
  "hkdf",
  "lazy_static",
+ "merlin",
  "num-bigint 0.4.6",
  "once_cell",
  "p256",
@@ -2892,7 +2992,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-derive"
 version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=09f86974195ec85d8aae386b1909d341d3ccfe52#09f86974195ec85d8aae386b1909d341d3ccfe52"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=d2e2d13be3e550745739144e2a090b9675e4ffcb#d2e2d13be3e550745739144e2a090b9675e4ffcb"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2901,7 +3001,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=09f86974195ec85d8aae386b1909d341d3ccfe52#09f86974195ec85d8aae386b1909d341d3ccfe52"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=d2e2d13be3e550745739144e2a090b9675e4ffcb#d2e2d13be3e550745739144e2a090b9675e4ffcb"
 dependencies = [
  "bcs",
  "digest 0.10.7",
@@ -2921,7 +3021,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-vdf"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=09f86974195ec85d8aae386b1909d341d3ccfe52#09f86974195ec85d8aae386b1909d341d3ccfe52"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=d2e2d13be3e550745739144e2a090b9675e4ffcb#d2e2d13be3e550745739144e2a090b9675e4ffcb"
 dependencies = [
  "bcs",
  "fastcrypto",
@@ -2938,7 +3038,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-zkp"
 version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=09f86974195ec85d8aae386b1909d341d3ccfe52#09f86974195ec85d8aae386b1909d341d3ccfe52"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=d2e2d13be3e550745739144e2a090b9675e4ffcb#d2e2d13be3e550745739144e2a090b9675e4ffcb"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -3042,6 +3142,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "fiat-crypto"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "find-msvc-tools"
@@ -3172,6 +3278,16 @@ checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "fs4"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
+dependencies = [
+ "rustix",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3511,6 +3627,15 @@ checksum = "765c9198f173dd59ce26ff9f95ef0aafd0a0fe01fb9d72841bc5066a4c06511d"
 dependencies = [
  "byteorder",
  "num-traits",
+]
+
+[[package]]
+name = "heck"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
+dependencies = [
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -3958,6 +4083,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "inferno"
 version = "0.11.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4150,7 +4284,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "serde",
  "serde_json",
@@ -4641,6 +4775,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "logos"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff472f899b4ec2d99161c51f60ff7075eeb3097069a36050d8037a6325eb8154"
+dependencies = [
+ "logos-derive 0.15.1",
+]
+
+[[package]]
 name = "logos-codegen"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4652,6 +4795,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex-syntax 0.8.8",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "logos-codegen"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "192a3a2b90b0c05b27a0b2c43eecdb7c415e29243acc3f89cc8247a5b693045c"
+dependencies = [
+ "beef",
+ "fnv",
+ "lazy_static",
+ "proc-macro2",
+ "quote",
+ "regex-syntax 0.8.8",
+ "rustc_version 0.4.1",
  "syn 2.0.111",
 ]
 
@@ -4675,7 +4834,16 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24fb722b06a9dc12adb0963ed585f19fc61dc5413e6a9be9422ef92c091e731d"
 dependencies = [
- "logos-codegen",
+ "logos-codegen 0.14.4",
+]
+
+[[package]]
+name = "logos-derive"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "605d9697bcd5ef3a42d38efc51541aa3d6a4a25f7ab6d1ed0da5ac632a26b470"
+dependencies = [
+ "logos-codegen 0.15.1",
 ]
 
 [[package]]
@@ -4891,6 +5059,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "merlin"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
+dependencies = [
+ "byteorder",
+ "keccak",
+ "rand_core 0.6.4",
+ "zeroize",
+]
+
+[[package]]
+name = "miette"
+version = "7.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f98efec8807c63c752b5bd61f862c165c115b0a35685bdcfd9238c7aeb592b7"
+dependencies = [
+ "cfg-if",
+ "miette-derive",
+ "unicode-width",
+]
+
+[[package]]
+name = "miette-derive"
+version = "7.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db5b29714e950dbb20d5e6f74f9dcec4edbcc1067bb7f8ed198c097b8c1a818b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4963,12 +5165,12 @@ dependencies = [
 [[package]]
 name = "move-abstract-interpreter"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 
 [[package]]
 name = "move-abstract-interpreter-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-binary-format",
 ]
@@ -4976,15 +5178,16 @@ dependencies = [
 [[package]]
 name = "move-abstract-stack"
 version = "0.0.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 
 [[package]]
 name = "move-binary-format"
 version = "0.0.3"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "enum-compat-util",
+ "getrandom 0.2.16",
  "indexmap 2.12.1",
  "move-abstract-interpreter",
  "move-core-types",
@@ -4997,12 +5200,12 @@ dependencies = [
 [[package]]
 name = "move-borrow-graph"
 version = "0.0.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 
 [[package]]
 name = "move-bytecode-source-map"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5018,7 +5221,7 @@ dependencies = [
 [[package]]
 name = "move-bytecode-utils"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "indexmap 2.12.1",
@@ -5031,7 +5234,7 @@ dependencies = [
 [[package]]
 name = "move-bytecode-verifier"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-interpreter",
  "move-abstract-stack",
@@ -5047,7 +5250,7 @@ dependencies = [
 [[package]]
 name = "move-bytecode-verifier-meter"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-binary-format",
  "move-core-types",
@@ -5057,7 +5260,7 @@ dependencies = [
 [[package]]
 name = "move-bytecode-verifier-v0"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-interpreter-v2",
  "move-abstract-stack",
@@ -5072,7 +5275,7 @@ dependencies = [
 [[package]]
 name = "move-bytecode-verifier-v1"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-interpreter-v2",
  "move-abstract-stack",
@@ -5087,7 +5290,7 @@ dependencies = [
 [[package]]
 name = "move-bytecode-verifier-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-interpreter-v2",
  "move-abstract-stack",
@@ -5102,7 +5305,7 @@ dependencies = [
 [[package]]
 name = "move-command-line-common"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5112,7 +5315,7 @@ dependencies = [
  "insta",
  "move-binary-format",
  "move-core-types",
- "once_cell",
+ "move-symbol-pool",
  "packed_struct",
  "serde",
  "sha2 0.9.9",
@@ -5123,7 +5326,7 @@ dependencies = [
 [[package]]
 name = "move-compiler"
 version = "0.0.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5144,7 +5347,6 @@ dependencies = [
  "move-ir-types",
  "move-proc-macros",
  "move-symbol-pool",
- "once_cell",
  "petgraph 0.8.3",
  "rayon",
  "regex",
@@ -5159,7 +5361,7 @@ dependencies = [
 [[package]]
 name = "move-core-types"
 version = "0.0.4"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5170,7 +5372,6 @@ dependencies = [
  "leb128",
  "move-proc-macros",
  "num",
- "once_cell",
  "primitive-types 0.10.1",
  "rand 0.8.5",
  "ref-cast",
@@ -5184,7 +5385,7 @@ dependencies = [
 [[package]]
 name = "move-coverage"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5209,7 +5410,7 @@ dependencies = [
 [[package]]
 name = "move-disassembler"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5230,7 +5431,7 @@ dependencies = [
 [[package]]
 name = "move-docgen"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "clap",
@@ -5245,7 +5446,6 @@ dependencies = [
  "move-model-2",
  "move-symbol-pool",
  "num",
- "once_cell",
  "regex",
  "serde",
 ]
@@ -5253,7 +5453,7 @@ dependencies = [
 [[package]]
 name = "move-ir-to-bytecode"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "codespan-reporting",
@@ -5271,7 +5471,7 @@ dependencies = [
 [[package]]
 name = "move-ir-to-bytecode-syntax"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "hex",
@@ -5284,20 +5484,19 @@ dependencies = [
 [[package]]
 name = "move-ir-types"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "hex",
  "move-command-line-common",
  "move-core-types",
  "move-symbol-pool",
- "once_cell",
  "serde",
 ]
 
 [[package]]
 name = "move-model"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "codespan",
@@ -5313,7 +5512,6 @@ dependencies = [
  "move-ir-types",
  "move-symbol-pool",
  "num",
- "once_cell",
  "regex",
  "serde",
 ]
@@ -5321,7 +5519,7 @@ dependencies = [
 [[package]]
 name = "move-model-2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -5345,7 +5543,7 @@ dependencies = [
 [[package]]
 name = "move-package"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "clap",
@@ -5363,7 +5561,6 @@ dependencies = [
  "move-model-2",
  "move-symbol-pool",
  "named-lock",
- "once_cell",
  "petgraph 0.8.3",
  "regex",
  "serde",
@@ -5379,9 +5576,80 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-package-alt"
+version = "0.1.0"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
+dependencies = [
+ "anyhow",
+ "append-only-vec",
+ "bimap",
+ "clap",
+ "codespan-reporting",
+ "colored",
+ "derive-where",
+ "fs4",
+ "futures",
+ "heck 0.3.3",
+ "indexmap 2.12.1",
+ "indoc",
+ "itertools 0.10.5",
+ "jsonrpc",
+ "move-command-line-common",
+ "move-compiler",
+ "move-core-types",
+ "move-symbol-pool",
+ "named-lock",
+ "path-clean",
+ "petgraph 0.8.3",
+ "pretty_assertions",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_spanned 0.6.9",
+ "sha2 0.9.9",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.5.11",
+ "toml_edit 0.22.27",
+ "tracing",
+ "tracing-subscriber",
+ "walkdir",
+ "whoami",
+]
+
+[[package]]
+name = "move-package-alt-compilation"
+version = "0.1.0"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
+dependencies = [
+ "anyhow",
+ "clap",
+ "colored",
+ "dunce",
+ "move-binary-format",
+ "move-bytecode-source-map",
+ "move-bytecode-utils",
+ "move-command-line-common",
+ "move-compiler",
+ "move-core-types",
+ "move-disassembler",
+ "move-docgen",
+ "move-model-2",
+ "move-package-alt",
+ "move-symbol-pool",
+ "petgraph 0.8.3",
+ "serde",
+ "serde_yaml",
+ "toml_edit 0.22.27",
+ "tracing",
+ "vfs",
+]
+
+[[package]]
 name = "move-proc-macros"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "enum-compat-util",
  "quote",
@@ -5391,18 +5659,21 @@ dependencies = [
 [[package]]
 name = "move-regex-borrow-graph"
 version = "0.0.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
+ "insta",
  "itertools 0.10.5",
  "move-binary-format",
+ "move-command-line-common",
  "move-core-types",
  "petgraph 0.8.3",
+ "proptest",
 ]
 
 [[package]]
 name = "move-stackless-bytecode"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "codespan",
  "codespan-reporting",
@@ -5423,7 +5694,7 @@ dependencies = [
 [[package]]
 name = "move-stdlib-natives"
 version = "0.1.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "hex",
  "move-binary-format",
@@ -5438,7 +5709,7 @@ dependencies = [
 [[package]]
 name = "move-stdlib-natives-v0"
 version = "0.1.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "hex",
  "move-binary-format",
@@ -5453,7 +5724,7 @@ dependencies = [
 [[package]]
 name = "move-stdlib-natives-v1"
 version = "0.1.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "hex",
  "move-binary-format",
@@ -5468,7 +5739,7 @@ dependencies = [
 [[package]]
 name = "move-stdlib-natives-v2"
 version = "0.1.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "hex",
  "move-binary-format",
@@ -5483,9 +5754,8 @@ dependencies = [
 [[package]]
 name = "move-symbol-pool"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
- "once_cell",
  "phf",
  "serde",
 ]
@@ -5493,11 +5763,10 @@ dependencies = [
 [[package]]
 name = "move-trace-format"
 version = "0.0.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-binary-format",
  "move-core-types",
- "move-vm-stack",
  "serde",
  "serde_json",
  "zstd",
@@ -5506,19 +5775,18 @@ dependencies = [
 [[package]]
 name = "move-vm-config"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-binary-format",
- "once_cell",
 ]
 
 [[package]]
 name = "move-vm-profiler"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
+ "move-trace-format",
  "move-vm-config",
- "once_cell",
  "serde",
  "serde_json",
  "tracing",
@@ -5527,7 +5795,7 @@ dependencies = [
 [[package]]
 name = "move-vm-runtime"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "better_any",
  "fail",
@@ -5536,9 +5804,7 @@ dependencies = [
  "move-core-types",
  "move-trace-format",
  "move-vm-config",
- "move-vm-stack",
  "move-vm-types",
- "once_cell",
  "parking_lot 0.11.2",
  "smallvec",
  "tracing",
@@ -5547,7 +5813,7 @@ dependencies = [
 [[package]]
 name = "move-vm-runtime-v0"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "better_any",
  "fail",
@@ -5565,7 +5831,7 @@ dependencies = [
 [[package]]
 name = "move-vm-runtime-v1"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "better_any",
  "fail",
@@ -5583,7 +5849,7 @@ dependencies = [
 [[package]]
 name = "move-vm-runtime-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "better_any",
  "fail",
@@ -5599,32 +5865,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-vm-stack"
-version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
-dependencies = [
- "move-bytecode-verifier",
- "move-vm-types",
-]
-
-[[package]]
 name = "move-vm-test-utils"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "move-binary-format",
  "move-core-types",
  "move-vm-profiler",
  "move-vm-types",
- "once_cell",
  "serde",
 ]
 
 [[package]]
 name = "move-vm-types"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "move-binary-format",
@@ -5637,7 +5893,7 @@ dependencies = [
 [[package]]
 name = "move-vm-types-v0"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "move-binary-format",
@@ -5649,7 +5905,7 @@ dependencies = [
 [[package]]
 name = "move-vm-types-v1"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "move-binary-format",
@@ -5661,7 +5917,7 @@ dependencies = [
 [[package]]
 name = "move-vm-types-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "move-binary-format",
@@ -5727,7 +5983,6 @@ dependencies = [
  "move-model",
  "move-stackless-bytecode",
  "move-trace-format",
- "move-vm-stack",
  "move-vm-types",
  "movy-analysis",
  "movy-replay",
@@ -5771,7 +6026,6 @@ dependencies = [
  "move-core-types",
  "move-trace-format",
  "move-vm-runtime",
- "move-vm-stack",
  "move-vm-types",
  "movy-analysis",
  "movy-sui",
@@ -5832,6 +6086,8 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-package",
+ "move-package-alt",
+ "move-package-alt-compilation",
  "move-trace-format",
  "move-vm-runtime",
  "move-vm-types",
@@ -5845,6 +6101,7 @@ dependencies = [
  "sui-execution",
  "sui-move-build",
  "sui-move-natives-latest",
+ "sui-package-alt",
  "sui-package-management",
  "sui-rpc",
  "sui-sdk",
@@ -5886,7 +6143,7 @@ dependencies = [
  "mdbx-derive",
  "move-binary-format",
  "move-core-types",
- "object_store",
+ "object_store 0.11.2",
  "reqwest",
  "serde",
  "serde_json",
@@ -5902,7 +6159,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/mysten-sim.git?rev=427147994705914a2f5afa42bc140794e31113b9#427147994705914a2f5afa42bc140794e31113b9"
+source = "git+https://github.com/MystenLabs/mysten-sim.git?rev=213e543d83b91c4aa904166bef255a6c0054c8a7#213e543d83b91c4aa904166bef255a6c0054c8a7"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
@@ -5967,9 +6224,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "multimap"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
+
+[[package]]
 name = "mysten-common"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "antithesis_sdk",
  "anyhow",
@@ -5992,7 +6255,7 @@ dependencies = [
 [[package]]
 name = "mysten-metrics"
 version = "0.7.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "async-trait",
  "axum",
@@ -6013,13 +6276,15 @@ dependencies = [
 [[package]]
 name = "mysten-network"
 version = "0.2.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anemo",
  "anemo-tower",
+ "anyhow",
  "async-stream",
  "bcs",
  "bytes",
+ "dashmap",
  "eyre",
  "fastcrypto",
  "futures",
@@ -6028,9 +6293,11 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "multiaddr",
+ "mysten-metrics",
  "once_cell",
  "pin-project-lite",
  "prometheus",
+ "quinn-proto",
  "rand 0.8.5",
  "rustls",
  "serde",
@@ -6168,6 +6435,9 @@ name = "nonempty"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "995defdca0a589acfdd1bd2e8e3b896b4d4f7675a31fd14c32611440c7f608e6"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "nonzero_ext"
@@ -6413,29 +6683,56 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cfccb68961a56facde1163f9319e0d15743352344e7808a11795fb99698dcaf"
 dependencies = [
  "async-trait",
- "base64 0.22.1",
  "bytes",
  "chrono",
  "futures",
- "httparse",
  "humantime",
- "hyper",
  "itertools 0.13.0",
- "md-5",
  "parking_lot 0.12.5",
  "percent-encoding",
- "quick-xml 0.37.5",
- "rand 0.8.5",
- "reqwest",
- "ring",
- "rustls-pemfile",
- "serde",
- "serde_json",
  "snafu",
  "tokio",
  "tracing",
  "url",
  "walkdir",
+]
+
+[[package]]
+name = "object_store"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2858065e55c148d294a9f3aae3b0fa9458edadb41a108397094566f4e3c0dfb"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "form_urlencoded",
+ "futures",
+ "http",
+ "http-body-util",
+ "httparse",
+ "humantime",
+ "hyper",
+ "itertools 0.14.0",
+ "md-5",
+ "parking_lot 0.12.5",
+ "percent-encoding",
+ "quick-xml 0.38.4",
+ "rand 0.9.2",
+ "reqwest",
+ "ring",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "url",
+ "walkdir",
+ "wasm-bindgen-futures",
+ "web-time",
 ]
 
 [[package]]
@@ -6820,6 +7117,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "path-clean"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
+
+[[package]]
 name = "pbkdf2"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7120,6 +7423,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pretty_assertions"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
+dependencies = [
+ "diff",
+ "yansi",
+]
+
+[[package]]
 name = "pretty_simple"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7127,6 +7440,16 @@ checksum = "ce5f33f1e15ede98d6bf380779f1d4cd90ca3f0943c0aab6637c60fcdd7d9024"
 dependencies = [
  "insta",
  "once_cell",
+]
+
+[[package]]
+name = "prettyplease"
+version = "0.2.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.111",
 ]
 
 [[package]]
@@ -7244,7 +7567,7 @@ dependencies = [
 [[package]]
 name = "prometheus-closure-metric"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -7292,6 +7615,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-build"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac6c3320f9abac597dcbc668774ef006702672474aad53c6d596b62e487b40b1"
+dependencies = [
+ "heck 0.5.0",
+ "itertools 0.14.0",
+ "log",
+ "multimap",
+ "once_cell",
+ "petgraph 0.6.5",
+ "prettyplease",
+ "prost",
+ "prost-types",
+ "pulldown-cmark",
+ "pulldown-cmark-to-cmark",
+ "regex",
+ "syn 2.0.111",
+ "tempfile",
+]
+
+[[package]]
 name = "prost-derive"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7302,6 +7647,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "prost-reflect"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b89455ef41ed200cafc47c76c552ee7792370ac420497e551f16123a9135f76e"
+dependencies = [
+ "logos 0.15.1",
+ "miette",
+ "prost",
+ "prost-types",
 ]
 
 [[package]]
@@ -7323,6 +7680,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "protox"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f25a07a73c6717f0b9bbbd685918f5df9815f7efba450b83d9c9dea41f0e3a1"
+dependencies = [
+ "bytes",
+ "miette",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "protox-parse",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "protox-parse"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "072eee358134396a4643dff81cfff1c255c9fbd3fb296be14bdb6a26f9156366"
+dependencies = [
+ "logos 0.15.1",
+ "miette",
+ "prost-types",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "psm"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7339,6 +7723,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "289cfd20ebec0e7ff2572e370dd7a1c9973ba666d3c38c5e747de0a4ada21f17"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "pulldown-cmark"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e8bbe1a966bd2f362681a44f6edce3c2310ac21e4d5067a6e7ec396297a6ea0"
+dependencies = [
+ "bitflags 2.10.0",
+ "memchr",
+ "unicase",
+]
+
+[[package]]
+name = "pulldown-cmark-to-cmark"
+version = "21.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8246feae3db61428fd0bb94285c690b460e4517d83152377543ca802357785f1"
+dependencies = [
+ "pulldown-cmark",
 ]
 
 [[package]]
@@ -7373,9 +7777,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.37.5"
+version = "0.38.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
 dependencies = [
  "memchr",
  "serde",
@@ -7409,6 +7813,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1906b49b0c3bc04b5fe5d86a77925ae6524a19b816ae38ce1e426255f1d8a31"
 dependencies = [
  "bytes",
+ "fastbloom",
  "getrandom 0.3.4",
  "lru-slab",
  "rand 0.9.2",
@@ -8032,15 +8437,6 @@ dependencies = [
  "rustls-pki-types",
  "schannel",
  "security-framework 3.5.1",
-]
-
-[[package]]
-name = "rustls-pemfile"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
-dependencies = [
- "rustls-pki-types",
 ]
 
 [[package]]
@@ -8699,7 +9095,7 @@ dependencies = [
 [[package]]
 name = "shared-crypto"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "eyre",
@@ -9108,10 +9504,11 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "sui-adapter-latest"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
+ "either",
  "indexmap 2.12.1",
  "leb128",
  "move-binary-format",
@@ -9127,6 +9524,7 @@ dependencies = [
  "move-vm-types",
  "mysten-common",
  "mysten-metrics",
+ "nonempty",
  "parking_lot 0.12.5",
  "serde",
  "serde_json",
@@ -9141,7 +9539,7 @@ dependencies = [
 [[package]]
 name = "sui-adapter-v0"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -9169,7 +9567,7 @@ dependencies = [
 [[package]]
 name = "sui-adapter-v1"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -9196,7 +9594,7 @@ dependencies = [
 [[package]]
 name = "sui-adapter-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -9223,7 +9621,7 @@ dependencies = [
 [[package]]
 name = "sui-config"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anemo",
  "anyhow",
@@ -9236,7 +9634,7 @@ dependencies = [
  "move-vm-config",
  "mysten-common",
  "nonzero_ext",
- "object_store",
+ "object_store 0.13.1",
  "once_cell",
  "prometheus",
  "rand 0.8.5",
@@ -9254,9 +9652,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "sui-crypto"
+version = "0.2.0"
+source = "git+https://github.com/MystenLabs/sui-rust-sdk.git?rev=aef7655b45dcf3747281456f4999542dc52f6af6#aef7655b45dcf3747281456f4999542dc52f6af6"
+dependencies = [
+ "ark-bn254",
+ "ark-ff 0.4.2",
+ "ark-groth16",
+ "ark-snark",
+ "ark-std 0.4.0",
+ "base64ct",
+ "bnum",
+ "ed25519-dalek",
+ "itertools 0.14.0",
+ "k256 0.13.4",
+ "p256",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2 0.10.9",
+ "signature 2.2.0",
+ "sui-sdk-types",
+]
+
+[[package]]
 name = "sui-enum-compat-util"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "serde_yaml",
 ]
@@ -9264,7 +9687,7 @@ dependencies = [
 [[package]]
 name = "sui-execution"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-interpreter",
  "move-abstract-interpreter-v2",
@@ -9303,7 +9726,7 @@ dependencies = [
 [[package]]
 name = "sui-framework"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "move-binary-format",
@@ -9316,8 +9739,8 @@ dependencies = [
 
 [[package]]
 name = "sui-framework-snapshot"
-version = "1.60.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -9332,7 +9755,7 @@ dependencies = [
 [[package]]
 name = "sui-http"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bytes",
  "http",
@@ -9352,7 +9775,7 @@ dependencies = [
 [[package]]
 name = "sui-json"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -9369,7 +9792,7 @@ dependencies = [
 [[package]]
 name = "sui-json-rpc-api"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -9389,7 +9812,7 @@ dependencies = [
 [[package]]
 name = "sui-json-rpc-types"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "bcs",
@@ -9405,6 +9828,7 @@ dependencies = [
  "move-disassembler",
  "move-ir-types",
  "mysten-metrics",
+ "nonempty",
  "schemars 0.8.22",
  "serde",
  "serde_json",
@@ -9422,7 +9846,7 @@ dependencies = [
 [[package]]
 name = "sui-keys"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9448,7 +9872,7 @@ dependencies = [
 [[package]]
 name = "sui-macros"
 version = "0.7.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "futures",
  "once_cell",
@@ -9458,11 +9882,12 @@ dependencies = [
 
 [[package]]
 name = "sui-move-build"
-version = "1.60.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "fastcrypto",
+ "futures",
  "move-binary-format",
  "move-bytecode-utils",
  "move-bytecode-verifier",
@@ -9470,21 +9895,24 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-ir-types",
- "move-package",
+ "move-package-alt",
+ "move-package-alt-compilation",
  "move-symbol-pool",
  "mysten-common",
  "serde-reflection",
- "sui-package-management",
+ "sui-package-alt",
  "sui-protocol-config",
  "sui-types",
  "sui-verifier-latest",
  "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
 name = "sui-move-natives-latest"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "better_any",
@@ -9507,7 +9935,7 @@ dependencies = [
 [[package]]
 name = "sui-move-natives-v0"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "better_any",
@@ -9528,7 +9956,7 @@ dependencies = [
 [[package]]
 name = "sui-move-natives-v1"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "better_any",
@@ -9549,7 +9977,7 @@ dependencies = [
 [[package]]
 name = "sui-move-natives-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "better_any",
@@ -9568,9 +9996,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sui-name-service"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
+dependencies = [
+ "bcs",
+ "move-core-types",
+ "serde",
+ "sui-types",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "sui-open-rpc"
-version = "1.60.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "bcs",
  "schemars 0.8.22",
@@ -9582,7 +10022,7 @@ dependencies = [
 [[package]]
 name = "sui-open-rpc-macros"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -9593,13 +10033,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "sui-package-alt"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
+dependencies = [
+ "anyhow",
+ "bin-version",
+ "clap",
+ "indexmap 2.12.1",
+ "move-compiler",
+ "move-core-types",
+ "move-package-alt",
+ "move-package-alt-compilation",
+ "serde",
+ "shared-crypto",
+ "sui-config",
+ "sui-json-rpc-types",
+ "sui-keys",
+ "sui-package-management",
+ "sui-sdk",
+ "tokio",
+ "toml 0.7.8",
+ "tracing",
+]
+
+[[package]]
 name = "sui-package-management"
-version = "1.60.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "move-core-types",
- "move-package",
  "move-symbol-pool",
  "sui-framework-snapshot",
  "sui-json-rpc-types",
@@ -9613,7 +10077,7 @@ dependencies = [
 [[package]]
 name = "sui-package-resolver"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "async-trait",
  "bcs",
@@ -9631,7 +10095,7 @@ dependencies = [
 [[package]]
 name = "sui-proc-macros"
 version = "0.7.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "msim-macros",
  "proc-macro2",
@@ -9643,13 +10107,14 @@ dependencies = [
 [[package]]
 name = "sui-protocol-config"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "clap",
  "fastcrypto",
  "move-binary-format",
  "move-core-types",
  "move-vm-config",
+ "mysten-common",
  "schemars 0.8.22",
  "serde",
  "serde-env",
@@ -9661,7 +10126,7 @@ dependencies = [
 [[package]]
 name = "sui-protocol-config-macros"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9670,8 +10135,8 @@ dependencies = [
 
 [[package]]
 name = "sui-rpc"
-version = "0.0.8"
-source = "git+https://github.com/MystenLabs/sui-rust-sdk.git?rev=fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2#fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2"
+version = "0.2.2"
+source = "git+https://github.com/MystenLabs/sui-rust-sdk.git?rev=aef7655b45dcf3747281456f4999542dc52f6af6#aef7655b45dcf3747281456f4999542dc52f6af6"
 dependencies = [
  "base64 0.22.1",
  "bcs",
@@ -9690,9 +10155,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "sui-rpc-api"
+version = "0.1.0"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "axum",
+ "base64 0.21.7",
+ "bcs",
+ "bytes",
+ "fastcrypto",
+ "futures",
+ "http",
+ "itertools 0.13.0",
+ "mime",
+ "move-binary-format",
+ "move-core-types",
+ "mysten-network",
+ "prometheus",
+ "prost",
+ "prost-types",
+ "protox",
+ "rand 0.8.5",
+ "roaring 0.10.12",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sui-config",
+ "sui-crypto",
+ "sui-macros",
+ "sui-name-service",
+ "sui-package-resolver",
+ "sui-protocol-config",
+ "sui-rpc",
+ "sui-sdk-types",
+ "sui-transaction-builder",
+ "sui-types",
+ "tap",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-health",
+ "tonic-prost",
+ "tonic-prost-build",
+ "tonic-reflection",
+ "tonic-web",
+ "tower 0.5.2",
+ "tracing",
+ "url",
+ "walkdir",
+]
+
+[[package]]
 name = "sui-sdk"
-version = "1.60.1"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+version = "1.65.2"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9705,16 +10225,21 @@ dependencies = [
  "futures-core",
  "jsonrpsee",
  "move-core-types",
+ "mysten-common",
  "reqwest",
  "serde",
  "serde_json",
  "serde_with",
  "shared-crypto",
  "sui-config",
+ "sui-crypto",
  "sui-json",
  "sui-json-rpc-api",
  "sui-json-rpc-types",
  "sui-keys",
+ "sui-rpc",
+ "sui-rpc-api",
+ "sui-sdk-types",
  "sui-transaction-builder",
  "sui-types",
  "thiserror 1.0.69",
@@ -9724,8 +10249,8 @@ dependencies = [
 
 [[package]]
 name = "sui-sdk-types"
-version = "0.0.8"
-source = "git+https://github.com/MystenLabs/sui-rust-sdk.git?rev=fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2#fb62af78b30f5dc64eeaec0094ab95b5ce5b7ce2"
+version = "0.2.2"
+source = "git+https://github.com/MystenLabs/sui-rust-sdk.git?rev=aef7655b45dcf3747281456f4999542dc52f6af6#aef7655b45dcf3747281456f4999542dc52f6af6"
 dependencies = [
  "base64ct",
  "bcs",
@@ -9740,13 +10265,13 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_with",
- "winnow",
+ "winnow 0.7.13",
 ]
 
 [[package]]
 name = "sui-transaction-builder"
 version = "0.0.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9763,7 +10288,7 @@ dependencies = [
 [[package]]
 name = "sui-types"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "anemo",
  "anyhow",
@@ -9812,7 +10337,7 @@ dependencies = [
  "prost-types",
  "rand 0.8.5",
  "roaring 0.10.12",
- "rustls-pemfile",
+ "rustls-pki-types",
  "schemars 0.8.22",
  "serde",
  "serde-name",
@@ -9839,7 +10364,7 @@ dependencies = [
 [[package]]
 name = "sui-verifier-latest"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-stack",
  "move-binary-format",
@@ -9855,7 +10380,7 @@ dependencies = [
 [[package]]
 name = "sui-verifier-v0"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-stack",
  "move-binary-format",
@@ -9871,7 +10396,7 @@ dependencies = [
 [[package]]
 name = "sui-verifier-v1"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-stack",
  "move-binary-format",
@@ -9886,7 +10411,7 @@ dependencies = [
 [[package]]
 name = "sui-verifier-v2"
 version = "0.1.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "move-abstract-stack",
  "move-binary-format",
@@ -10264,9 +10789,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.48.0"
+version = "1.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
+checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "bytes",
  "libc",
@@ -10376,6 +10901,19 @@ dependencies = [
 
 [[package]]
 name = "toml"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd79e69d3b627db300ff956027cc6c3798cef26d22526befdfcd12feeb6d2257"
+dependencies = [
+ "indexmap 2.12.1",
+ "serde",
+ "serde_spanned 0.6.9",
+ "toml_datetime 0.6.11",
+ "toml_edit 0.19.15",
+]
+
+[[package]]
+name = "toml"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0dc8b1fb61449e27716ec0e1bdf0f6b8f3e8f6b05391e8497b8b6d7804ea6d8"
@@ -10386,7 +10924,7 @@ dependencies = [
  "toml_datetime 0.7.3",
  "toml_parser",
  "toml_writer",
- "winnow",
+ "winnow 0.7.13",
 ]
 
 [[package]]
@@ -10409,6 +10947,19 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
+version = "0.19.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
+dependencies = [
+ "indexmap 2.12.1",
+ "serde",
+ "serde_spanned 0.6.9",
+ "toml_datetime 0.6.11",
+ "winnow 0.5.40",
+]
+
+[[package]]
+name = "toml_edit"
 version = "0.22.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
@@ -10418,7 +10969,7 @@ dependencies = [
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.11",
  "toml_write",
- "winnow",
+ "winnow 0.7.13",
 ]
 
 [[package]]
@@ -10430,7 +10981,7 @@ dependencies = [
  "indexmap 2.12.1",
  "toml_datetime 0.7.3",
  "toml_parser",
- "winnow",
+ "winnow 0.7.13",
 ]
 
 [[package]]
@@ -10439,7 +10990,7 @@ version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0cbe268d35bdb4bb5a56a2de88d0ad0eb70af5384a99d648cd4b3d04039800e"
 dependencies = [
- "winnow",
+ "winnow 0.7.13",
 ]
 
 [[package]]
@@ -10487,6 +11038,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic-build"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce6d8958ed3be404120ca43ffa0fb1e1fc7be214e96c8d33bd43a131b6eebc9e"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "tonic-health"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10508,6 +11071,54 @@ dependencies = [
  "bytes",
  "prost",
  "tonic",
+]
+
+[[package]]
+name = "tonic-prost-build"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65873ace111e90344b8973e94a1fc817c924473affff24629281f90daed1cd2e"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "prost-build",
+ "prost-types",
+ "quote",
+ "syn 2.0.111",
+ "tempfile",
+ "tonic-build",
+]
+
+[[package]]
+name = "tonic-reflection"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91e5f75c058c397bf4ecada0fe0a2299c49c252fcf484f4a2f47279b6fa7026b"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
+]
+
+[[package]]
+name = "tonic-web"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1d56db85992f978d0c35a091674c03d42c48e029357833d311e95c6f7ec8f5a"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "http",
+ "http-body",
+ "pin-project",
+ "tokio-stream",
+ "tonic",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -10766,7 +11377,7 @@ dependencies = [
 [[package]]
 name = "typed-store-error"
 version = "0.4.0"
-source = "git+https://github.com/wtdcode/sui?branch=v1.60.1-fuzz#fb830c04ea91af412d458b8b09d2a62ca009b015"
+source = "git+https://github.com/wtdcode/sui?branch=v1.65.2-fuzz#ab693f07b56ac1d5b215ec9e8485c3c1dea68a59"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
@@ -11600,6 +12211,15 @@ name = "windows_x86_64_msvc"
 version = "0.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
+
+[[package]]
+name = "winnow"
+version = "0.5.40"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "winnow"

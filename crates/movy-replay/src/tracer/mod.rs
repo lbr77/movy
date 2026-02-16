@@ -61,12 +61,11 @@ impl<T: MovySuiTracerExt> Tracer for MovySuiTracerWrapper<T> {
     fn notify(
         &mut self,
         event: &TraceEvent,
-        _writer: &mut move_trace_format::interface::Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    ) {
+        _writer: move_trace_format::interface::Writer<'_>,
+    ) -> bool {
         if !self.tracer.on_raw_event(&self.state, event) {
             self.state.apply_event(event);
-            return;
+            return false;
         }
         match event {
             TraceEvent::External(e) => {
@@ -111,6 +110,7 @@ impl<T: MovySuiTracerExt> Tracer for MovySuiTracerWrapper<T> {
                 self.state.apply_event(event);
             }
         }
+        false
     }
 }
 
@@ -121,9 +121,9 @@ impl Tracer for NopTracer {
     fn notify(
         &mut self,
         _event: &TraceEvent,
-        _writer: &mut move_trace_format::interface::Writer<'_>,
-        _stack: Option<&move_vm_stack::Stack>,
-    ) {
+        _writer: move_trace_format::interface::Writer<'_>,
+    ) -> bool {
+        false
     }
 }
 
@@ -142,13 +142,13 @@ where
     fn notify(
         &mut self,
         event: &TraceEvent,
-        writer: &mut move_trace_format::interface::Writer<'_>,
-        stack: Option<&move_vm_stack::Stack>,
-    ) {
+        writer: move_trace_format::interface::Writer<'_>,
+    ) -> bool {
         match self {
-            Self::T1(t) => t.notify(event, writer, stack),
-            Self::T2(t) => t.notify(event, writer, stack),
-        }
+            Self::T1(t) => t.notify(event, writer),
+            Self::T2(t) => t.notify(event, writer),
+        };
+        false
     }
 }
 
@@ -230,79 +230,11 @@ where
     fn notify(
         &mut self,
         event: &TraceEvent,
-        writer: &mut move_trace_format::interface::Writer<'_>,
-        stack: Option<&move_vm_stack::Stack>,
-    ) {
+        writer: move_trace_format::interface::Writer<'_>,
+    ) -> bool {
         if let Some(tracer) = &mut self.tracer {
-            tracer.notify(event, writer, stack);
+            tracer.notify(event, writer);
         }
-    }
-}
-
-pub struct CombinedTracer<T1, T2> {
-    pub t1: T1,
-    pub t2: T2,
-}
-
-impl<T1, T2> Tracer for CombinedTracer<T1, T2>
-where
-    T1: Tracer,
-    T2: Tracer,
-{
-    fn notify(
-        &mut self,
-        event: &TraceEvent,
-        writer: &mut move_trace_format::interface::Writer<'_>,
-        stack: Option<&move_vm_stack::Stack>,
-    ) {
-        self.t1.notify(event, writer, stack);
-        self.t2.notify(event, writer, stack);
-    }
-}
-
-impl<T1, T2> MovySuiTracerExt for CombinedTracer<T1, T2>
-where
-    T1: MovySuiTracerExt,
-    T2: MovySuiTracerExt,
-{
-    fn on_raw_event(&mut self, state: &TraceState, ev: &TraceEvent) -> bool {
-        self.t1.on_raw_event(state, ev) && self.t2.on_raw_event(state, ev)
-    }
-    fn on_move_call(&mut self, state: &TraceState) {
-        self.t1.on_move_call(state);
-        self.t2.on_move_call(state);
-    }
-    fn on_effect(&mut self, state: &TraceState, effect: &Box<Effect>) {
-        self.t1.on_effect(state, effect);
-        self.t2.on_effect(state, effect);
-    }
-    fn before_instruction(
-        &mut self,
-        state: &TraceState,
-        tys: &Vec<TypeTag>,
-        pc: u16,
-        gas_left: u64,
-        instruction: &Bytecode,
-    ) {
-        self.t1
-            .before_instruction(state, tys, pc, gas_left, instruction);
-        self.t2
-            .before_instruction(state, tys, pc, gas_left, instruction);
-    }
-
-    fn close_frame(
-        &mut self,
-        state: &TraceState,
-        frame_id: TraceIndex,
-        return_: &Vec<TraceValue>,
-        gas_left: u64,
-    ) {
-        self.t1.close_frame(state, frame_id, return_, gas_left);
-        self.t2.close_frame(state, frame_id, return_, gas_left);
-    }
-
-    fn open_frame(&mut self, state: &TraceState, frame: &Box<Frame>, gas_left: u64) {
-        self.t1.open_frame(state, frame, gas_left);
-        self.t2.open_frame(state, frame, gas_left);
+        false
     }
 }

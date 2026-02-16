@@ -14,7 +14,7 @@ use movy_types::{
     input::MoveAddress,
 };
 use serde::{Deserialize, Serialize};
-use sui_move_build::{BuildConfig, CompiledPackage, build_from_resolution_graph, implicit_deps};
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_package_management::{PublishedAtError, system_package_versions::latest_system_packages};
 use sui_types::{base_types::ObjectID, digests::get_mainnet_chain_identifier};
 use tracing::{debug, trace};
@@ -22,11 +22,9 @@ use tracing::{debug, trace};
 pub fn build_package_resolved(
     folder: &Path,
     test_mode: bool,
-) -> Result<(CompiledPackage, ResolvedGraph), MovyError> {
-    let mut cfg = move_package::BuildConfig::default();
-    cfg.implicit_dependencies = implicit_deps(latest_system_packages());
+) -> Result<CompiledPackage, MovyError> {
+    let mut cfg = move_package_alt_compilation::build_config::BuildConfig::default();
     cfg.default_flavor = Some(Flavor::Sui);
-    cfg.lock_file = Some(folder.join(SourcePackageLayout::Lock.path()));
     cfg.test_mode = test_mode;
     cfg.silence_warnings = true;
 
@@ -34,15 +32,11 @@ pub fn build_package_resolved(
         config: cfg,
         run_bytecode_verifier: false,
         print_diags_to_stderr: false,
-        chain_id: Some(get_mainnet_chain_identifier().to_string()),
+        environment: sui_package_alt::mainnet_environment(),
     };
     trace!("Build config is {:?}", &cfg.config);
-
     // cfg.compile_package(path, writer) // reference
-    let chain_id = cfg.chain_id.clone();
-    let resolution_graph = cfg.resolution_graph(folder, chain_id.clone())?;
-    let artifacts = build_from_resolution_graph(resolution_graph.clone(), false, false, chain_id)?;
-    Ok((artifacts, resolution_graph))
+    Ok(cfg.build(folder)?)
 }
 
 pub fn mock_module_address(address: ObjectID, module: &mut CompiledModule) {
@@ -185,17 +179,13 @@ impl SuiCompiledPackage {
         with_unpublished: bool,
         verify_deps: bool,
     ) -> Result<SuiCompiledPackage, MovyError> {
-        let (artifacts, _) = build_package_resolved(folder, test_mode)?;
-        debug!(
-            "artifacts dep: {:?}",
-            artifacts.dependency_graph.topological_order()
-        );
+        let artifacts = build_package_resolved(folder, test_mode)?;
+        debug!("artifacts dep: {:?}", artifacts.dependency_ids);
         debug!("published: {:?}", artifacts.dependency_ids.published);
 
         let root_address = match artifacts.published_at {
-            Ok(address) => address,
-            Err(PublishedAtError::NotPresent) => ObjectID::ZERO,
-            _ => return Err(eyre!("Invalid published-at: {:?}", &artifacts.published_at).into()),
+            Some(address) => address,
+            None => ObjectID::ZERO,
         };
         let package_name = artifacts
             .package
@@ -406,12 +396,7 @@ impl SuiCompiledPackage {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::{HashMap, HashSet},
-        path::PathBuf,
-    };
-
-    use crate::compile::{SuiCompiledPackage, build_package_resolved};
+    use crate::compile::SuiCompiledPackage;
 
     #[test]
     fn test_build_simple() {
@@ -428,6 +413,7 @@ public fun new<T: drop, V: drop>(ctx: &mut TxContext, t2: &Test<T, V>, t: &Test<
 "#,
         )
         .unwrap();
+        dbg!(&out);
         let abi = out.abi().unwrap();
         dbg!(&abi);
     }
