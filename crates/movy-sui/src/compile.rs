@@ -5,9 +5,6 @@ use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Flavor;
 use move_core_types::account_address::AccountAddress;
-use move_package::{
-    resolution::resolution_graph::ResolvedGraph, source_package::layout::SourcePackageLayout,
-};
 use movy_types::{
     abi::{MOVY_INIT, MOVY_ORACLE, MovePackageAbi},
     error::MovyError,
@@ -15,8 +12,7 @@ use movy_types::{
 };
 use serde::{Deserialize, Serialize};
 use sui_move_build::{BuildConfig, CompiledPackage};
-use sui_package_management::{PublishedAtError, system_package_versions::latest_system_packages};
-use sui_types::{base_types::ObjectID, digests::get_mainnet_chain_identifier};
+use sui_types::base_types::ObjectID;
 use tracing::{debug, trace};
 
 pub fn build_package_resolved(

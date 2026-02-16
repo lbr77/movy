@@ -1,4 +1,4 @@
-use movy_sui::compile::{SuiCompiledPackage, build_package_resolved};
+use movy_sui::compile::SuiCompiledPackage;
 use serde::Serialize;
 use std::{
     io::Write,
@@ -26,8 +26,8 @@ fn build_movy(dir: &Path) -> SuiCompiledPackage {
 fn build_std(dir: &Path, test: bool) -> Vec<SuiCompiledPackage> {
     clear_build(dir);
     // let (_, resolved) = build_package_resolved(dir, test).unwrap();
-    let flag = if test { "testing" } else { "non-testing" };
-    let mut deps = vec![];
+    let _flag = if test { "testing" } else { "non-testing" };
+    let deps = vec![];
     // for (package_name, package) in resolved.package_table.iter() {
     //     if package_name.as_str() != "hello_std" {
     //         cargo_print!(
