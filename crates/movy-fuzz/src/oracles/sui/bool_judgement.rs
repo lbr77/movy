@@ -23,79 +23,54 @@ use super::common::{format_vulnerability_info, to_module_func};
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BoolJudgementOracle;
 
-impl<T, S> SuiGeneralOracle<T, S> for BoolJudgementOracle {
-    fn pre_execution(
+impl<S> SuiGeneralOracle<S> for BoolJudgementOracle {
+    fn before_instruction(
         &mut self,
-        _db: &T,
-        _state: &mut S,
-        _sequence: &MoveSequence,
-    ) -> Result<(), MovyError> {
-        Ok(())
-    }
-
-    fn event(
-        &mut self,
-        event: &TraceEvent,
-        _stack: Option<&Stack>,
+        pc: u16,
+        instruction: &Bytecode,
+        trace_state: &movy_replay::tracer::state::TraceState,
         symbol_stack: &ConcolicState,
-        current_function: Option<&movy_types::input::FunctionIdent>,
-        _state: &mut S,
+        current_function: &movy_types::input::FunctionIdent,
+        state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
-        match event {
-            TraceEvent::BeforeInstruction {
-                pc, instruction, ..
-            } => {
-                let stack_syms = &symbol_stack.stack;
-                let current = current_function.and_then(to_module_func);
-                let loss = match instruction {
-                    Bytecode::Eq
-                    | Bytecode::Neq
-                    | Bytecode::Lt
-                    | Bytecode::Le
-                    | Bytecode::Gt
-                    | Bytecode::Ge => {
-                        let stack_len = stack_syms.len();
-                        if stack_len < 2 {
-                            return Ok(vec![]);
-                        }
-                        let rhs = &stack_syms[stack_len - 1];
-                        let lhs = &stack_syms[stack_len - 2];
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => {
-                                int_has_variable(l) == Some(false)
-                                    && int_has_variable(r) == Some(false)
-                            }
-                            _ => false,
-                        }
+        let stack_syms = &symbol_stack.stack;
+        let current = to_module_func(current_function);
+        let loss = match instruction {
+            Bytecode::Eq
+            | Bytecode::Neq
+            | Bytecode::Lt
+            | Bytecode::Le
+            | Bytecode::Gt
+            | Bytecode::Ge => {
+                let stack_len = stack_syms.len();
+                if stack_len < 2 {
+                    return Ok(vec![]);
+                }
+                let rhs = &stack_syms[stack_len - 1];
+                let lhs = &stack_syms[stack_len - 2];
+                match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => {
+                        int_has_variable(l) == Some(false) && int_has_variable(r) == Some(false)
                     }
                     _ => false,
-                };
-                if loss {
-                    let info = format_vulnerability_info(
-                        "Unnecessary bool judgement (two constants)",
-                        current.as_ref(),
-                        Some(*pc),
-                    );
-                    Ok(vec![OracleFinding {
-                        oracle: "BoolJudgementOracle".to_string(),
-                        severity: Severity::Minor,
-                        extra: json!(info),
-                    }])
-                } else {
-                    Ok(vec![])
                 }
             }
-            _ => Ok(vec![]),
+            _ => false,
+        };
+        if loss {
+            let info = format_vulnerability_info(
+                "Unnecessary bool judgement (two constants)",
+                current.as_ref(),
+                Some(pc),
+            );
+            Ok(vec![OracleFinding {
+                oracle: "BoolJudgementOracle".to_string(),
+                severity: Severity::Minor,
+                extra: json!(info),
+            }])
+        } else {
+            Ok(vec![])
         }
-    }
-
-    fn done_execution(
-        &mut self,
-        _db: &T,
-        _state: &mut S,
-        _effects: &TransactionEffects,
-    ) -> Result<Vec<OracleFinding>, MovyError> {
-        Ok(vec![])
     }
 }
 

@@ -11,8 +11,8 @@ use move_binary_format::{
     },
 };
 use move_core_types::{
-    annotated_value::MoveTypeLayout,
-    annotated_value::{MoveFieldLayout, MoveStructLayout},
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    language_storage::ModuleId,
 };
 use serde::{Deserialize, Serialize};
 use sui_types::{Identifier, base_types::ObjectID, object::Object};
@@ -1111,6 +1111,25 @@ impl MoveFunctionAbi {
 pub struct MoveModuleId {
     pub module_address: MoveAddress,
     pub module_name: String,
+}
+
+impl TryFrom<MoveModuleId> for ModuleId {
+    type Error = MovyError;
+    fn try_from(value: MoveModuleId) -> Result<Self, Self::Error> {
+        Ok(ModuleId::new(
+            value.module_address.into(),
+            Identifier::new(value.module_name).map_err(|e| eyre!("invalid ident {}", e))?,
+        ))
+    }
+}
+
+impl From<ModuleId> for MoveModuleId {
+    fn from(value: ModuleId) -> Self {
+        Self {
+            module_address: (*value.address()).into(),
+            module_name: value.name().to_string(),
+        }
+    }
 }
 
 impl MoveModuleId {

@@ -1,10 +1,17 @@
-use std::{cmp::Ordering, collections::BTreeMap, str::FromStr};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{OnceLock, atomic::AtomicBool},
+};
 
+use crate::tracer::{extra::InstructionExtraInformation, state::TraceState};
 use move_binary_format::file_format::Bytecode;
 use move_core_types::{language_storage::TypeTag, u256::U256};
-use move_trace_format::format::{Effect, ExtraInstructionInformation, TraceEvent, TypeTagWithRefs};
-use move_vm_stack::Stack;
-use move_vm_types::values::{Reference, VMValueCast, Value};
+use move_trace_format::{
+    format::{Effect, Frame, TraceEvent, TraceValue, TypeTagWithRefs},
+    value::SerializableMoveValue,
+};
 use tracing::{trace, warn};
 use z3::ast::{Ast, Bool, Int};
 
@@ -19,25 +26,10 @@ enum PrimitiveValue {
     U256(U256),
 }
 
-fn try_value_as<T>(v: &Value) -> Option<T>
-where
-    Value: VMValueCast<T>,
-{
-    v.copy_value().ok()?.value_as::<T>().ok()
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolValue {
     Value(Int),
     Unknown,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ConcolicState {
-    pub stack: Vec<SymbolValue>,
-    pub locals: Vec<Vec<SymbolValue>>,
-    pub args: Vec<BTreeMap<usize, Int>>,
-    pub disable: bool,
 }
 
 impl PrimitiveValue {
@@ -72,37 +64,17 @@ impl PrimitiveValue {
     }
 }
 
-fn extract_primitive_value(v: &Value) -> PrimitiveValue {
-    if let Some(reference) = try_value_as::<Reference>(v) {
-        let inner = reference
-            .read_ref()
-            .expect("failed to read reference for comparison");
-        return extract_primitive_value(&inner);
+fn extract_primitive_value(v: &TraceValue) -> PrimitiveValue {
+    match v.snapshot() {
+        SerializableMoveValue::Bool(b) => PrimitiveValue::Bool(*b),
+        SerializableMoveValue::U8(u) => PrimitiveValue::U8(*u),
+        SerializableMoveValue::U16(u) => PrimitiveValue::U16(*u),
+        SerializableMoveValue::U32(u) => PrimitiveValue::U32(*u),
+        SerializableMoveValue::U64(u) => PrimitiveValue::U64(*u),
+        SerializableMoveValue::U128(u) => PrimitiveValue::U128(*u),
+        SerializableMoveValue::U256(u) => PrimitiveValue::U256(*u),
+        v => panic!("Unsupported value type {:?} for comparison", v),
     }
-
-    if let Some(b) = try_value_as::<bool>(v) {
-        return PrimitiveValue::Bool(b);
-    }
-    if let Some(u) = try_value_as::<u8>(v) {
-        return PrimitiveValue::U8(u);
-    }
-    if let Some(u) = try_value_as::<u16>(v) {
-        return PrimitiveValue::U16(u);
-    }
-    if let Some(u) = try_value_as::<u32>(v) {
-        return PrimitiveValue::U32(u);
-    }
-    if let Some(u) = try_value_as::<u64>(v) {
-        return PrimitiveValue::U64(u);
-    }
-    if let Some(u) = try_value_as::<u128>(v) {
-        return PrimitiveValue::U128(u);
-    }
-    if let Some(u) = try_value_as::<U256>(v) {
-        return PrimitiveValue::U256(u);
-    }
-
-    panic!("Unsupported value type {:?} for comparison", v);
 }
 
 fn compare_value_impl(v1: &PrimitiveValue, v2: &PrimitiveValue) -> Ordering {
@@ -121,18 +93,27 @@ fn compare_value_impl(v1: &PrimitiveValue, v2: &PrimitiveValue) -> Ordering {
     }
 }
 
-pub fn compare_value(v1: &Value, v2: &Value) -> Ordering {
+pub fn compare_value(v1: &TraceValue, v2: &TraceValue) -> Ordering {
     let p1 = extract_primitive_value(v1);
     let p2 = extract_primitive_value(v2);
     compare_value_impl(&p1, &p2)
 }
 
-pub fn value_to_u256(v: &Value) -> U256 {
+pub fn value_to_u256(v: &TraceValue) -> U256 {
     extract_primitive_value(v).as_u256()
 }
 
-pub fn value_bitwidth(v: &Value) -> u32 {
+pub fn value_bitwidth(v: &TraceValue) -> u32 {
     extract_primitive_value(v).bitwidth()
+}
+
+fn stack_top2(stack: &[TraceValue]) -> (&TraceValue, &TraceValue) {
+    let len = stack.len();
+    (&stack[len - 2], &stack[len - 1])
+}
+
+fn stack_top1(stack: &[TraceValue]) -> &TraceValue {
+    &stack[stack.len() - 1]
 }
 
 fn int_two_pow(bits: u32) -> Int {
@@ -241,6 +222,21 @@ pub fn int_bvxor_const(x: &Int, mask: U256, bits: u32) -> Int {
     int_mod_2n(&sum, bits)
 }
 
+fn suppress_warning() -> bool {
+    static SUPPRESED: OnceLock<AtomicBool> = OnceLock::new();
+    SUPPRESED
+        .get_or_init(|| AtomicBool::new(false))
+        .fetch_or(true, std::sync::atomic::Ordering::SeqCst)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct ConcolicState {
+    pub stack: Vec<SymbolValue>,
+    pub locals: Vec<Vec<SymbolValue>>,
+    pub args: Vec<BTreeMap<usize, Int>>,
+    pub disable: bool,
+}
+
 impl ConcolicState {
     pub fn new() -> Self {
         Self {
@@ -287,7 +283,7 @@ impl ConcolicState {
         }
     }
 
-    fn resolve_value(value: &Value) -> Int {
+    fn resolve_value(value: &TraceValue) -> Int {
         match extract_primitive_value(value) {
             PrimitiveValue::Bool(b) => {
                 let int_val = if b { 1 } else { 0 };
@@ -302,723 +298,711 @@ impl ConcolicState {
         }
     }
 
-    pub fn notify_event(&mut self, event: &TraceEvent, stack: Option<&Stack>) -> Option<Bool> {
-        if self.disable {
-            return None;
-        }
-        if let Some(s) = stack {
-            if self.stack.len() != s.value.len() && s.value.is_empty() {
-                self.stack.clear();
+    #[inline]
+    fn process_binary_op(&mut self, stack: &[TraceValue]) -> Option<(Int, Int)> {
+        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        let stack_len = stack.len();
+        let true_lhs = &stack[stack_len - 2];
+        let true_rhs = &stack[stack_len - 1];
+        let (new_l, new_r) = match (lhs, rhs) {
+            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+            (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                let new_r = Self::resolve_value(true_rhs);
+                (l, new_r)
             }
-            if let TraceEvent::Effect(v) = event
-                && let Effect::ExecutionError(_) = v.as_ref()
-            {
-                self.stack.pop();
+            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                let new_l = Self::resolve_value(true_lhs);
+                (new_l, r)
             }
-            if self.stack.len() != s.value.len() {
-                warn!(
-                    "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution",
-                    self.stack, s.value, event
-                );
-                self.disable = true;
+            (SymbolValue::Unknown, SymbolValue::Unknown) => {
                 return None;
             }
-        } else {
-            trace!("No stack available for event: {:?}", event);
+        };
+        Some((new_l, new_r))
+    }
+
+    pub fn on_move_call_inner(&mut self) {
+        self.locals.clear();
+        self.stack.clear();
+    }
+
+    pub fn on_raw_event_inner(&mut self, ev: &TraceEvent, trace_state: &TraceState) -> bool {
+        if self.disable {
+            return false;
+        }
+        let stack = &trace_state.operand_stack;
+
+        match ev {
+            TraceEvent::Instruction { .. } => {
+                if self.stack.len() != stack.len() {
+                    if !suppress_warning() {
+                        tracing::warn!(
+                            "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution and suppress further messages",
+                            self.stack,
+                            stack,
+                            ev
+                        );
+                    }
+                    tracing::debug!(
+                        "stack: {:?}, stack from trace: {:?}, event: {:?}, disabling concolic execution",
+                        self.stack,
+                        stack,
+                        ev
+                    );
+                    self.disable = true;
+                    return false;
+                }
+            }
+            TraceEvent::Effect(effect) => {
+                if let Effect::ExecutionError(_) = effect.as_ref() {
+                    self.stack.pop();
+                }
+            }
+            _ => {}
         }
 
-        let mut process_binary_op = || {
-            let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-            let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-            let true_lhs = stack_iter.next().unwrap();
-            let true_rhs = stack_iter.next().unwrap();
-            let (new_l, new_r) = match (lhs, rhs) {
-                (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                    let new_r = Self::resolve_value(true_rhs);
-                    (l, new_r)
-                }
-                (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                    let new_l = Self::resolve_value(true_lhs);
-                    (new_l, r)
-                }
-                (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                    return None;
-                }
-            };
-            Some((new_l, new_r))
-        };
+        true
+    }
 
-        match event {
-            TraceEvent::External(v) => {
-                trace!("External event: {:?}", v);
-                if v.as_str().is_some_and(|s| s == "MoveCallStart") {
-                    self.locals.clear();
-                    self.stack.clear();
+    pub fn on_open_frame_inner(&mut self, frame: &Box<Frame>, trace_state: &TraceState) {
+        let param_count = frame.parameters.len();
+        if self.locals.is_empty() {
+            let mut locals = if frame.locals_types.is_empty() {
+                vec![SymbolValue::Unknown; param_count]
+            } else {
+                frame
+                    .locals_types
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ty)| Self::resolve_arg(self.args.len(), i, ty))
+                    .collect::<Vec<_>>()
+            };
+            if locals.len() < param_count {
+                locals.resize(param_count, SymbolValue::Unknown);
+            }
+            self.args.push(
+                locals
+                    .iter()
+                    .take(param_count)
+                    .enumerate()
+                    .filter_map(|(i, v)| match v {
+                        SymbolValue::Value(bv) => Some((i, bv.clone())),
+                        SymbolValue::Unknown => None,
+                    })
+                    .collect(),
+            );
+            self.locals.push(locals);
+            trace!("args: {:?}", self.args);
+        } else {
+            // TODO: need input_unresolved_tys and return_unresolved_tys
+            let arg_len = param_count.min(self.stack.len());
+            let skip_idx = self.stack.len() - arg_len;
+            let mut locals: Vec<_> = self.stack.drain(skip_idx..).collect();
+            self.stack.truncate(skip_idx);
+            if frame.locals_types.len() > locals.len() {
+                locals.extend(std::iter::repeat_n(
+                    SymbolValue::Unknown,
+                    frame.locals_types.len() - locals.len(),
+                ));
+            }
+            self.locals.push(locals);
+            if frame.is_native {
+                for _ in 0..frame.return_types.len() {
+                    self.stack.push(SymbolValue::Unknown);
                 }
             }
-            TraceEvent::OpenFrame { frame, gas_left: _ } => {
-                trace!("Open frame: {:?}", frame);
-                trace!("Current stack: {:?}", stack.map(|s| &s.value));
-                let param_count = frame.parameters.len();
-                if self.locals.is_empty() {
-                    let mut locals = if frame.locals_types.is_empty() {
-                        vec![SymbolValue::Unknown; param_count]
-                    } else {
-                        frame
-                            .locals_types
-                            .iter()
-                            .enumerate()
-                            .map(|(i, ty)| Self::resolve_arg(self.args.len(), i, ty))
-                            .collect::<Vec<_>>()
-                    };
-                    if locals.len() < param_count {
-                        locals.resize(param_count, SymbolValue::Unknown);
-                    }
-                    self.args.push(
-                        locals
-                            .iter()
-                            .take(param_count)
-                            .enumerate()
-                            .filter_map(|(i, v)| match v {
-                                SymbolValue::Value(bv) => Some((i, bv.clone())),
-                                SymbolValue::Unknown => None,
-                            })
-                            .collect(),
-                    );
-                    self.locals.push(locals);
-                    trace!("args: {:?}", self.args);
-                } else {
-                    // TODO: need input_unresolved_tys and return_unresolved_tys
-                    let arg_len = param_count.min(self.stack.len());
-                    let skip_idx = self.stack.len() - arg_len;
-                    let mut locals: Vec<_> = self.stack.drain(skip_idx..).collect();
-                    self.stack.truncate(skip_idx);
-                    if frame.locals_types.len() > locals.len() {
-                        locals.extend(std::iter::repeat_n(
-                            SymbolValue::Unknown,
-                            frame.locals_types.len() - locals.len(),
-                        ));
-                    }
-                    self.locals.push(locals);
-                    if frame.is_native {
-                        for _ in 0..frame.return_types.len() {
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                }
-            }
-            TraceEvent::CloseFrame {
-                frame_id: _,
-                return_: _,
-                gas_left: _,
-            } => {
-                trace!("Close frame. Current stack: {:?}", stack.map(|s| &s.value));
-                self.locals.pop();
-            }
-            TraceEvent::BeforeInstruction {
-                type_parameters: _,
-                pc,
-                gas_left: _,
-                instruction,
-                extra,
-            } => {
-                trace!(
-                    "Before instruction at pc {}: {:?}, extra: {:?}. Current stack: {:?}",
-                    pc,
-                    instruction,
-                    extra,
-                    stack.map(|s| &s.value)
+        }
+    }
+
+    pub fn on_close_frame_inner(&mut self, _state: &TraceState) {
+        self.locals.pop();
+    }
+
+    pub fn on_before_instruction_inner(
+        &mut self,
+        pc: u16,
+        instruction: &Bytecode,
+        trace_state: &TraceState,
+        extra: Option<InstructionExtraInformation>,
+    ) -> Option<Bool> {
+        let stack = &trace_state.operand_stack;
+        if self.stack.len() != stack.len() || self.disable {
+            if !suppress_warning() {
+                warn!(
+                    "stack: {:?}, stack from trace: {:?}, disabling concolic execution and further warnings",
+                    self.stack, stack
                 );
-                match instruction {
-                    Bytecode::Pop
-                    | Bytecode::BrTrue(_)
-                    | Bytecode::BrFalse(_)
-                    | Bytecode::Abort
-                    | Bytecode::VecImmBorrow(_)
-                    | Bytecode::VecMutBorrow(_) => {
-                        self.stack.pop();
+            }
+            tracing::debug!(
+                "stack: {:?}, stack from trace: {:?}, disabling concolic execution and further warnings",
+                self.stack,
+                stack
+            );
+            self.disable = true;
+            return None;
+        }
+        trace!(
+            "Before instruction at pc {}: {:?}, extra: {:?}. Current stack: {:?}",
+            pc, instruction, extra, &trace_state.operand_stack
+        );
+        match instruction {
+            Bytecode::Pop
+            | Bytecode::BrTrue(_)
+            | Bytecode::BrFalse(_)
+            | Bytecode::Abort
+            | Bytecode::VecImmBorrow(_)
+            | Bytecode::VecMutBorrow(_) => {
+                self.stack.pop();
+            }
+            Bytecode::LdU8(_)
+            | Bytecode::LdU16(_)
+            | Bytecode::LdU32(_)
+            | Bytecode::LdU64(_)
+            | Bytecode::LdU128(_)
+            | Bytecode::LdU256(_)
+            | Bytecode::LdConst(_) => {
+                self.stack.push(SymbolValue::Unknown);
+            }
+            Bytecode::LdFalse => {
+                self.stack.push(SymbolValue::Value(Int::from_u64(0)));
+            }
+            Bytecode::LdTrue => {
+                self.stack.push(SymbolValue::Value(Int::from_u64(1)));
+            }
+            Bytecode::CastU8 => {
+                if let Some(v) = self.stack.last() {
+                    if let SymbolValue::Value(int) = v {
+                        return Some(int.le(Self::max_u_bits(8)));
                     }
-                    Bytecode::LdU8(_)
-                    | Bytecode::LdU16(_)
-                    | Bytecode::LdU32(_)
-                    | Bytecode::LdU64(_)
-                    | Bytecode::LdU128(_)
-                    | Bytecode::LdU256(_)
-                    | Bytecode::LdConst(_) => {
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::CastU16 => {
+                if let Some(v) = self.stack.last() {
+                    if let SymbolValue::Value(int) = v {
+                        return Some(int.le(Self::max_u_bits(16)));
+                    }
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::CastU32 => {
+                if let Some(v) = self.stack.last() {
+                    if let SymbolValue::Value(int) = v {
+                        return Some(int.le(Self::max_u_bits(32)));
+                    }
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::CastU64 => {
+                if let Some(v) = self.stack.last() {
+                    if let SymbolValue::Value(int) = v {
+                        return Some(int.le(Self::max_u_bits(64)));
+                    }
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::CastU128 => {
+                if let Some(v) = self.stack.last() {
+                    if let SymbolValue::Value(int) = v {
+                        return Some(int.le(Self::max_u_bits(128)));
+                    }
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::Add => {
+                if let Some((l, r)) = self.process_binary_op(stack) {
+                    // overflow check not implemented yet
+                    let sum = l + r;
+                    self.stack.push(SymbolValue::Value(sum));
+                } else {
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::Sub => {
+                if let Some((l, r)) = self.process_binary_op(stack) {
+                    // overflow check not implemented yet
+                    let diff = l - r;
+                    self.stack.push(SymbolValue::Value(diff));
+                } else {
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::Mul => {
+                if let Some((l, r)) = self.process_binary_op(stack) {
+                    // overflow check not implemented yet
+                    let prod = l * r;
+                    self.stack.push(SymbolValue::Value(prod));
+                } else {
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::Div => {
+                if let Some((l, r)) = self.process_binary_op(stack) {
+                    // overflow check not implemented yet
+                    let quot = l / r;
+                    self.stack.push(SymbolValue::Value(quot));
+                } else {
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::Mod => {
+                if let Some((l, r)) = self.process_binary_op(stack) {
+                    // overflow check not implemented yet
+                    let rem = l % r;
+                    self.stack.push(SymbolValue::Value(rem));
+                } else {
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::And | Bytecode::BitAnd => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+
+                let bit_width = value_bitwidth(true_lhs);
+                let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
+                match (lhs, rhs) {
+                    (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
                         self.stack.push(SymbolValue::Unknown);
                     }
-                    Bytecode::LdFalse => {
-                        self.stack.push(SymbolValue::Value(Int::from_u64(0)));
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let and = int_bvand_const(&l, true_r, bit_width);
+                        self.stack.push(SymbolValue::Value(and));
                     }
-                    Bytecode::LdTrue => {
-                        self.stack.push(SymbolValue::Value(Int::from_u64(1)));
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let and = int_bvand_const(&r, true_l, bit_width);
+                        self.stack.push(SymbolValue::Value(and));
                     }
-                    Bytecode::CastU8 => {
-                        if let Some(v) = self.stack.last() {
-                            if let SymbolValue::Value(int) = v {
-                                return Some(int.le(Self::max_u_bits(8)));
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
                     }
-                    Bytecode::CastU16 => {
-                        if let Some(v) = self.stack.last() {
-                            if let SymbolValue::Value(int) = v {
-                                return Some(int.le(Self::max_u_bits(16)));
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
-                    }
-                    Bytecode::CastU32 => {
-                        if let Some(v) = self.stack.last() {
-                            if let SymbolValue::Value(int) = v {
-                                return Some(int.le(Self::max_u_bits(32)));
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
-                    }
-                    Bytecode::CastU64 => {
-                        if let Some(v) = self.stack.last() {
-                            if let SymbolValue::Value(int) = v {
-                                return Some(int.le(Self::max_u_bits(64)));
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
-                    }
-                    Bytecode::CastU128 => {
-                        if let Some(v) = self.stack.last() {
-                            if let SymbolValue::Value(int) = v {
-                                return Some(int.le(Self::max_u_bits(128)));
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
-                    }
-                    Bytecode::Add => {
-                        if let Some((l, r)) = process_binary_op() {
-                            // overflow check not implemented yet
-                            let sum = l + r;
-                            self.stack.push(SymbolValue::Value(sum));
-                        } else {
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::Sub => {
-                        if let Some((l, r)) = process_binary_op() {
-                            // overflow check not implemented yet
-                            let diff = l - r;
-                            self.stack.push(SymbolValue::Value(diff));
-                        } else {
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::Mul => {
-                        if let Some((l, r)) = process_binary_op() {
-                            // overflow check not implemented yet
-                            let prod = l * r;
-                            self.stack.push(SymbolValue::Value(prod));
-                        } else {
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::Div => {
-                        if let Some((l, r)) = process_binary_op() {
-                            // overflow check not implemented yet
-                            let quot = l / r;
-                            self.stack.push(SymbolValue::Value(quot));
-                        } else {
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::Mod => {
-                        if let Some((l, r)) = process_binary_op() {
-                            // overflow check not implemented yet
-                            let rem = l % r;
-                            self.stack.push(SymbolValue::Value(rem));
-                        } else {
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::And | Bytecode::BitAnd => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-
-                        let bit_width = value_bitwidth(true_lhs);
-                        let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let and = int_bvand_const(&l, true_r, bit_width);
-                                self.stack.push(SymbolValue::Value(and));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let and = int_bvand_const(&r, true_l, bit_width);
-                                self.stack.push(SymbolValue::Value(and));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        }
-                    }
-                    Bytecode::Or | Bytecode::BitOr => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-
-                        let bit_width = value_bitwidth(true_lhs);
-                        let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let or = int_bvor_const(&l, true_r, bit_width);
-                                self.stack.push(SymbolValue::Value(or));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let or = int_bvor_const(&r, true_l, bit_width);
-                                self.stack.push(SymbolValue::Value(or));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        }
-                    }
-                    Bytecode::Xor => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-
-                        let bit_width = value_bitwidth(true_lhs);
-                        let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let xor = int_bvxor_const(&l, true_r, bit_width);
-                                self.stack.push(SymbolValue::Value(xor));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let xor = int_bvxor_const(&r, true_l, bit_width);
-                                self.stack.push(SymbolValue::Value(xor));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        }
-                    }
-                    Bytecode::Shl => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let bit_width = value_bitwidth(true_lhs);
-                        let true_r = value_to_u256(true_rhs).unchecked_as_u32();
-                        let threshold = Self::max_u_bits(bit_width);
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let shl = l * int_two_pow(true_r);
-                                let shl_mod = shl.modulo(int_two_pow(bit_width));
-                                self.stack.push(SymbolValue::Value(shl_mod));
-                                return Some(shl.gt(&threshold)); // cause overflow
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        }
-                    }
-                    Bytecode::Shr => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let _true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-
-                        let true_r = value_to_u256(true_rhs).unchecked_as_u32();
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let shr = l / int_two_pow(true_r);
-                                self.stack.push(SymbolValue::Value(shr));
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(_r)) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        }
-                    }
-                    Bytecode::Not => {
-                        if let Some(v) = self.stack.pop() {
-                            match v {
-                                SymbolValue::Value(n) => {
-                                    let bit_width = value_bitwidth(
-                                        stack.unwrap().last_n(1).unwrap().next().unwrap(),
-                                    );
-                                    let not_n = int_bvnot(&n, bit_width);
-                                    self.stack.push(SymbolValue::Value(not_n));
-                                }
-                                SymbolValue::Unknown => {
-                                    self.stack.push(SymbolValue::Unknown);
-                                }
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
-                    }
-                    Bytecode::CopyLoc(idx)
-                    | Bytecode::MutBorrowLoc(idx)
-                    | Bytecode::ImmBorrowLoc(idx) => {
-                        if let Some(locals) = self.locals.last() {
-                            if let Some(v) = locals.get(*idx as usize) {
-                                self.stack.push(v.clone());
-                            } else {
-                                warn!("Local index out of bounds at pc {}", pc);
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        } else {
-                            warn!("No locals available at pc {}", pc);
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::MoveLoc(idx) => {
-                        if let Some(locals) = self.locals.last_mut() {
-                            if let Some(v) = locals.get(*idx as usize) {
-                                self.stack.push(v.clone());
-                                locals[*idx as usize] = SymbolValue::Unknown; // moved-from
-                            } else {
-                                warn!("Local index out of bounds at pc {}", pc);
-                                self.stack.push(SymbolValue::Unknown);
-                            }
-                        } else {
-                            warn!("No locals available at pc {}", pc);
-                            self.stack.push(SymbolValue::Unknown);
-                        }
-                    }
-                    Bytecode::StLoc(idx) => {
-                        if let Some(v) = self.stack.pop() {
-                            if let Some(locals) = self.locals.last_mut() {
-                                if let Some(slot) = locals.get_mut(*idx as usize) {
-                                    *slot = v;
-                                } else {
-                                    for _ in locals.len()..=*idx as usize {
-                                        locals.push(SymbolValue::Unknown);
-                                    }
-                                    locals[*idx as usize] = v;
-                                }
-                            } else {
-                                warn!("No locals available at pc {}", pc);
-                            }
-                        } else {
-                            warn!("Stack underflow at pc {}", pc);
-                        }
-                    }
-                    Bytecode::WriteRef | Bytecode::VecPushBack(_) => {
-                        self.stack.pop();
-                        self.stack.pop();
-                    }
-                    Bytecode::Eq => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let (new_l, new_r) = match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let new_r = Self::resolve_value(true_rhs);
-                                (l, new_r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let new_l = Self::resolve_value(true_lhs);
-                                (new_l, r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                                return None;
-                            }
-                        };
-                        if matches!(compare_value(true_lhs, true_rhs), Ordering::Equal) {
-                            let eq = new_l._eq(&new_r);
-                            let int = eq.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(eq);
-                        } else {
-                            // different values are not equal
-                            let neq = new_l._eq(&new_r).not();
-                            let int = neq.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(neq);
-                        }
-                    }
-                    Bytecode::Neq => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let (new_l, new_r) = match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let new_r = Self::resolve_value(true_rhs);
-                                (l, new_r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let new_l = Self::resolve_value(true_lhs);
-                                (new_l, r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                                return None;
-                            }
-                        };
-                        if !matches!(compare_value(true_lhs, true_rhs), Ordering::Equal) {
-                            let neq = new_l._eq(&new_r).not();
-                            let bv = neq.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(bv));
-                            return Some(neq);
-                        } else {
-                            // same values are equal
-                            let eq = new_l._eq(&new_r);
-                            let bv = eq.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(bv));
-                            return Some(eq.not());
-                        }
-                    }
-                    Bytecode::Lt => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let (new_l, new_r) = match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let new_r = Self::resolve_value(true_rhs);
-                                (l, new_r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let new_l = Self::resolve_value(true_lhs);
-                                (new_l, r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                                return None;
-                            }
-                        };
-                        if matches!(compare_value(true_lhs, true_rhs), Ordering::Less) {
-                            let lt = new_l.lt(&new_r);
-                            let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(lt);
-                        } else {
-                            // not less than
-                            let nlt = new_l.lt(&new_r).not();
-                            let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(nlt);
-                        }
-                    }
-                    Bytecode::Le => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let (new_l, new_r) = match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let new_r = Self::resolve_value(true_rhs);
-                                (l, new_r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let new_l = Self::resolve_value(true_lhs);
-                                (new_l, r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                                return None;
-                            }
-                        };
-                        if !matches!(compare_value(true_lhs, true_rhs), Ordering::Greater) {
-                            let lt = new_l.le(&new_r);
-                            let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(lt);
-                        } else {
-                            // not less than
-                            let nlt = new_l.le(&new_r).not();
-                            let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(nlt);
-                        }
-                    }
-                    Bytecode::Gt => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let (new_l, new_r) = match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let new_r = Self::resolve_value(true_rhs);
-                                (l, new_r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let new_l = Self::resolve_value(true_lhs);
-                                (new_l, r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                                return None;
-                            }
-                        };
-                        if matches!(compare_value(true_lhs, true_rhs), Ordering::Greater) {
-                            let lt = new_l.gt(&new_r);
-                            let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(lt);
-                        } else {
-                            // not less than
-                            let nlt = new_l.gt(&new_r).not();
-                            let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(nlt);
-                        }
-                    }
-                    Bytecode::Ge => {
-                        let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-                        let mut stack_iter = stack.unwrap().last_n(2).unwrap();
-                        let true_lhs = stack_iter.next().unwrap();
-                        let true_rhs = stack_iter.next().unwrap();
-                        let (new_l, new_r) = match (lhs, rhs) {
-                            (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
-                            (SymbolValue::Value(l), SymbolValue::Unknown) => {
-                                let new_r = Self::resolve_value(true_rhs);
-                                (l, new_r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Value(r)) => {
-                                let new_l = Self::resolve_value(true_lhs);
-                                (new_l, r)
-                            }
-                            (SymbolValue::Unknown, SymbolValue::Unknown) => {
-                                self.stack.push(SymbolValue::Unknown);
-                                return None;
-                            }
-                        };
-                        if !matches!(compare_value(true_lhs, true_rhs), Ordering::Less) {
-                            let lt = new_l.ge(&new_r);
-                            let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(lt);
-                        } else {
-                            // not less than
-                            let nlt = new_l.ge(&new_r).not();
-                            let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
-                            self.stack.push(SymbolValue::Value(int));
-                            return Some(nlt);
-                        }
-                    }
-                    Bytecode::VecPack(_, len) => {
-                        for _ in 0..*len {
-                            self.stack.pop();
-                        }
-                        self.stack.push(SymbolValue::Unknown); // represent the vector as unknown
-                    }
-                    Bytecode::VecUnpack(_, len) => {
-                        self.stack.pop();
-                        for _ in 0..*len {
-                            self.stack.push(SymbolValue::Unknown); // represent each element as unknown
-                        }
-                    }
-                    Bytecode::VecSwap(_) => {
-                        self.stack.pop();
-                        self.stack.pop();
-                        self.stack.pop();
-                    }
-                    Bytecode::Pack(_) | Bytecode::PackGeneric(_) => {
-                        match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::Pack(count)
-                            | ExtraInstructionInformation::PackGeneric(count) => {
-                                for _ in 0..*count {
-                                    self.stack.pop();
-                                }
-                                self.stack.push(SymbolValue::Unknown); // represent the struct as unknown
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    Bytecode::Unpack(_) | Bytecode::UnpackGeneric(_) => {
-                        self.stack.pop();
-                        match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::Unpack(count)
-                            | ExtraInstructionInformation::UnpackGeneric(count) => {
-                                for _ in 0..*count {
-                                    self.stack.push(SymbolValue::Unknown); // represent each field as unknown
-                                }
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    Bytecode::PackVariant(_) | Bytecode::PackVariantGeneric(_) => {
-                        match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::PackVariant(count)
-                            | ExtraInstructionInformation::PackVariantGeneric(count) => {
-                                for _ in 0..*count {
-                                    self.stack.pop();
-                                }
-                                self.stack.push(SymbolValue::Unknown); // represent the enum as unknown
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    Bytecode::UnpackVariant(_)
-                    | Bytecode::UnpackVariantImmRef(_)
-                    | Bytecode::UnpackVariantMutRef(_)
-                    | Bytecode::UnpackVariantGeneric(_)
-                    | Bytecode::UnpackVariantGenericImmRef(_)
-                    | Bytecode::UnpackVariantGenericMutRef(_) => {
-                        self.stack.pop();
-                        if extra.is_none() {
-                            warn!("Missing extra info for unpack variant at pc {}", pc);
-                            self.disable = true;
-                            return None;
-                        }
-                        match extra.as_ref().unwrap() {
-                            ExtraInstructionInformation::UnpackVariant(count)
-                            | ExtraInstructionInformation::UnpackVariantGeneric(count) => {
-                                for _ in 0..*count {
-                                    self.stack.push(SymbolValue::Unknown); // represent each field as unknown
-                                }
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    Bytecode::VariantSwitch(_) => {
-                        self.stack.pop();
-                    }
-                    _ => {}
                 }
             }
-            _ => {
-                // trace!("Unsupported event: {:?}", event);
+            Bytecode::Or | Bytecode::BitOr => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+
+                let bit_width = value_bitwidth(true_lhs);
+                let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
+                match (lhs, rhs) {
+                    (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let or = int_bvor_const(&l, true_r, bit_width);
+                        self.stack.push(SymbolValue::Value(or));
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let or = int_bvor_const(&r, true_l, bit_width);
+                        self.stack.push(SymbolValue::Value(or));
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                }
             }
+            Bytecode::Xor => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+
+                let bit_width = value_bitwidth(true_lhs);
+                let (true_l, true_r) = (value_to_u256(true_lhs), value_to_u256(true_rhs));
+                match (lhs, rhs) {
+                    (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let xor = int_bvxor_const(&l, true_r, bit_width);
+                        self.stack.push(SymbolValue::Value(xor));
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let xor = int_bvxor_const(&r, true_l, bit_width);
+                        self.stack.push(SymbolValue::Value(xor));
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                }
+            }
+            Bytecode::Shl => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let bit_width = value_bitwidth(true_lhs);
+                let true_r = value_to_u256(true_rhs).unchecked_as_u32();
+                let threshold = Self::max_u_bits(bit_width);
+                match (lhs, rhs) {
+                    (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let shl = l * int_two_pow(true_r);
+                        let shl_mod = shl.modulo(int_two_pow(bit_width));
+                        self.stack.push(SymbolValue::Value(shl_mod));
+                        return Some(shl.gt(&threshold)); // cause overflow
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(_r)) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                }
+            }
+            Bytecode::Shr => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (_true_lhs, true_rhs) = stack_top2(stack);
+
+                let true_r = value_to_u256(true_rhs).unchecked_as_u32();
+                match (lhs, rhs) {
+                    (SymbolValue::Value(_l), SymbolValue::Value(_r)) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let shr = l / int_two_pow(true_r);
+                        self.stack.push(SymbolValue::Value(shr));
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(_r)) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                }
+            }
+            Bytecode::Not => {
+                if let Some(v) = self.stack.pop() {
+                    match v {
+                        SymbolValue::Value(n) => {
+                            let bit_width = value_bitwidth(stack_top1(stack));
+                            let not_n = int_bvnot(&n, bit_width);
+                            self.stack.push(SymbolValue::Value(not_n));
+                        }
+                        SymbolValue::Unknown => {
+                            self.stack.push(SymbolValue::Unknown);
+                        }
+                    }
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::CopyLoc(idx) | Bytecode::MutBorrowLoc(idx) | Bytecode::ImmBorrowLoc(idx) => {
+                if let Some(locals) = self.locals.last() {
+                    if let Some(v) = locals.get(*idx as usize) {
+                        self.stack.push(v.clone());
+                    } else {
+                        warn!("Local index out of bounds at pc {}", pc);
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                } else {
+                    warn!("No locals available at pc {}", pc);
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::MoveLoc(idx) => {
+                if let Some(locals) = self.locals.last_mut() {
+                    if let Some(v) = locals.get(*idx as usize) {
+                        self.stack.push(v.clone());
+                        locals[*idx as usize] = SymbolValue::Unknown; // moved-from
+                    } else {
+                        warn!("Local index out of bounds at pc {}", pc);
+                        self.stack.push(SymbolValue::Unknown);
+                    }
+                } else {
+                    warn!("No locals available at pc {}", pc);
+                    self.stack.push(SymbolValue::Unknown);
+                }
+            }
+            Bytecode::StLoc(idx) => {
+                if let Some(v) = self.stack.pop() {
+                    if let Some(locals) = self.locals.last_mut() {
+                        if let Some(slot) = locals.get_mut(*idx as usize) {
+                            *slot = v;
+                        } else {
+                            for _ in locals.len()..=*idx as usize {
+                                locals.push(SymbolValue::Unknown);
+                            }
+                            locals[*idx as usize] = v;
+                        }
+                    } else {
+                        warn!("No locals available at pc {}", pc);
+                    }
+                } else {
+                    warn!("Stack underflow at pc {}", pc);
+                }
+            }
+            Bytecode::WriteRef | Bytecode::VecPushBack(_) => {
+                self.stack.pop();
+                self.stack.pop();
+            }
+            Bytecode::Eq => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let (new_l, new_r) = match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let new_r = Self::resolve_value(true_rhs);
+                        (l, new_r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let new_l = Self::resolve_value(true_lhs);
+                        (new_l, r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                        return None;
+                    }
+                };
+                if matches!(compare_value(true_lhs, true_rhs), Ordering::Equal) {
+                    let eq = new_l._eq(&new_r);
+                    let int = eq.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(eq);
+                } else {
+                    // different values are not equal
+                    let neq = new_l._eq(&new_r).not();
+                    let int = neq.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(neq);
+                }
+            }
+            Bytecode::Neq => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let (new_l, new_r) = match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let new_r = Self::resolve_value(true_rhs);
+                        (l, new_r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let new_l = Self::resolve_value(true_lhs);
+                        (new_l, r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                        return None;
+                    }
+                };
+                if !matches!(compare_value(true_lhs, true_rhs), Ordering::Equal) {
+                    let neq = new_l._eq(&new_r).not();
+                    let bv = neq.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(bv));
+                    return Some(neq);
+                } else {
+                    // same values are equal
+                    let eq = new_l._eq(&new_r);
+                    let bv = eq.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(bv));
+                    return Some(eq.not());
+                }
+            }
+            Bytecode::Lt => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let (new_l, new_r) = match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let new_r = Self::resolve_value(true_rhs);
+                        (l, new_r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let new_l = Self::resolve_value(true_lhs);
+                        (new_l, r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                        return None;
+                    }
+                };
+                if matches!(compare_value(true_lhs, true_rhs), Ordering::Less) {
+                    let lt = new_l.lt(&new_r);
+                    let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(lt);
+                } else {
+                    // not less than
+                    let nlt = new_l.lt(&new_r).not();
+                    let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(nlt);
+                }
+            }
+            Bytecode::Le => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let (new_l, new_r) = match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let new_r = Self::resolve_value(true_rhs);
+                        (l, new_r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let new_l = Self::resolve_value(true_lhs);
+                        (new_l, r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                        return None;
+                    }
+                };
+                if !matches!(compare_value(true_lhs, true_rhs), Ordering::Greater) {
+                    let lt = new_l.le(&new_r);
+                    let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(lt);
+                } else {
+                    // not less than
+                    let nlt = new_l.le(&new_r).not();
+                    let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(nlt);
+                }
+            }
+            Bytecode::Gt => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let (new_l, new_r) = match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let new_r = Self::resolve_value(true_rhs);
+                        (l, new_r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let new_l = Self::resolve_value(true_lhs);
+                        (new_l, r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                        return None;
+                    }
+                };
+                if matches!(compare_value(true_lhs, true_rhs), Ordering::Greater) {
+                    let lt = new_l.gt(&new_r);
+                    let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(lt);
+                } else {
+                    // not less than
+                    let nlt = new_l.gt(&new_r).not();
+                    let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(nlt);
+                }
+            }
+            Bytecode::Ge => {
+                let (rhs, lhs) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                let (true_lhs, true_rhs) = stack_top2(stack);
+                let (new_l, new_r) = match (lhs, rhs) {
+                    (SymbolValue::Value(l), SymbolValue::Value(r)) => (l, r),
+                    (SymbolValue::Value(l), SymbolValue::Unknown) => {
+                        let new_r = Self::resolve_value(true_rhs);
+                        (l, new_r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Value(r)) => {
+                        let new_l = Self::resolve_value(true_lhs);
+                        (new_l, r)
+                    }
+                    (SymbolValue::Unknown, SymbolValue::Unknown) => {
+                        self.stack.push(SymbolValue::Unknown);
+                        return None;
+                    }
+                };
+                if !matches!(compare_value(true_lhs, true_rhs), Ordering::Less) {
+                    let lt = new_l.ge(&new_r);
+                    let int = lt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(lt);
+                } else {
+                    // not less than
+                    let nlt = new_l.ge(&new_r).not();
+                    let int = nlt.ite(&Int::from_u64(1), &Int::from_u64(0));
+                    self.stack.push(SymbolValue::Value(int));
+                    return Some(nlt);
+                }
+            }
+            Bytecode::VecPack(_, len) => {
+                for _ in 0..*len {
+                    self.stack.pop();
+                }
+                self.stack.push(SymbolValue::Unknown); // represent the vector as unknown
+            }
+            Bytecode::VecUnpack(_, len) => {
+                self.stack.pop();
+                for _ in 0..*len {
+                    self.stack.push(SymbolValue::Unknown); // represent each element as unknown
+                }
+            }
+            Bytecode::VecSwap(_) => {
+                self.stack.pop();
+                self.stack.pop();
+                self.stack.pop();
+            }
+            Bytecode::Pack(_) | Bytecode::PackGeneric(_) => {
+                match extra.as_ref().unwrap() {
+                    InstructionExtraInformation::Pack(count)
+                    | InstructionExtraInformation::PackGeneric(count) => {
+                        for _ in 0..*count {
+                            self.stack.pop();
+                        }
+                        self.stack.push(SymbolValue::Unknown); // represent the struct as unknown
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Bytecode::Unpack(_) | Bytecode::UnpackGeneric(_) => {
+                self.stack.pop();
+                match extra.as_ref().unwrap() {
+                    InstructionExtraInformation::Unpack(count)
+                    | InstructionExtraInformation::UnpackGeneric(count) => {
+                        for _ in 0..*count {
+                            self.stack.push(SymbolValue::Unknown); // represent each field as unknown
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Bytecode::PackVariant(_) | Bytecode::PackVariantGeneric(_) => {
+                match extra.as_ref().unwrap() {
+                    InstructionExtraInformation::PackVariant(count)
+                    | InstructionExtraInformation::PackVariantGeneric(count) => {
+                        for _ in 0..*count {
+                            self.stack.pop();
+                        }
+                        self.stack.push(SymbolValue::Unknown); // represent the enum as unknown
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Bytecode::UnpackVariant(_)
+            | Bytecode::UnpackVariantImmRef(_)
+            | Bytecode::UnpackVariantMutRef(_)
+            | Bytecode::UnpackVariantGeneric(_)
+            | Bytecode::UnpackVariantGenericImmRef(_)
+            | Bytecode::UnpackVariantGenericMutRef(_) => {
+                self.stack.pop();
+                if extra.is_none() {
+                    warn!("Missing extra info for unpack variant at pc {}", pc);
+                    self.disable = true;
+                    return None;
+                }
+                match extra.as_ref().unwrap() {
+                    InstructionExtraInformation::UnpackVariant(count)
+                    | InstructionExtraInformation::UnpackVariantGeneric(count) => {
+                        for _ in 0..*count {
+                            self.stack.push(SymbolValue::Unknown); // represent each field as unknown
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Bytecode::VariantSwitch(_) => {
+                self.stack.pop();
+            }
+            _ => {}
         }
         None
     }

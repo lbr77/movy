@@ -33,7 +33,7 @@ use tracing::{debug, trace, warn};
 
 use crate::{
     db::{ObjectStoreInfo, ObjectStoreMintObject},
-    tracer::NopTracer,
+    tracer::{MovySuiTracerExt, MovySuiTracerWrapper, NopTracer},
 };
 
 pub fn testing_proto() -> ProtocolConfig {
@@ -225,6 +225,23 @@ where
                 gas: gas_status,
             },
             tracer,
+        })
+    }
+
+    pub fn run_ptb_with_movy_tracer_gas<R: MovySuiTracerExt>(
+        &self,
+        ptb: ProgrammableTransaction,
+        epoch: u64,
+        epoch_ms: u64,
+        sender: SuiAddress,
+        gas: ObjectID,
+        tracer: Option<R>,
+    ) -> Result<ExecutionTracedResults<R>, MovyError> {
+        let tracer = tracer.map(|v| MovySuiTracerWrapper::from(v));
+        let v = self.run_ptb_with_gas(ptb, epoch, epoch_ms, sender, gas, tracer)?;
+        Ok(ExecutionTracedResults {
+            results: v.results,
+            tracer: v.tracer.map(|t| t.tracer),
         })
     }
 

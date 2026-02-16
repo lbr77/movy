@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use clap::Args;
 use color_eyre::eyre::eyre;
-use movy_replay::{exec::SuiExecutor, tracer::tree::TreeTracer};
+use movy_replay::{
+    exec::SuiExecutor,
+    tracer::{MovySuiTracerWrapper, tree::TreeTracer},
+};
 use movy_sui::{
     database::{cache::CachedStore, graphql::GraphQlDatabase},
     rpc::graphql::GraphQlClient,
@@ -43,7 +46,7 @@ impl SuiTraceArgs {
             tx.tx,
             fork_tx_ckpt_summary.epoch,
             fork_tx_ckpt_summary.timestamp_ms,
-            Some(&mut tracer),
+            Some(MovySuiTracerWrapper::from(&mut tracer)),
         )?;
 
         println!("The result is {:?}", results.effects.status());

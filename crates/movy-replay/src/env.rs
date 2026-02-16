@@ -210,7 +210,7 @@ impl<
                 } else {
                     None
                 };
-                let mut results = executor.run_ptb_with_gas(
+                let mut results = executor.run_ptb_with_movy_tracer_gas(
                     ptb,
                     epoch,
                     epoch_ms,

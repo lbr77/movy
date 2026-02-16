@@ -10,7 +10,12 @@ use libafl_bolts::tuples::{Handle, MatchNameRef, RefIndexable};
 use movy_replay::{
     db::{ObjectStoreInfo, ObjectStoreMintObject},
     exec::{ExecutionTracedResults, SuiExecutor},
-    tracer::{concolic::ConcolicState, fuzz::SuiFuzzTracer, op::Log, oracle::SuiGeneralOracle},
+    tracer::{
+        concolic::ConcolicState,
+        fuzz::{PackageResolvedCache, PackageResolver, SuiFuzzTracer},
+        op::Log,
+        oracle::SuiGeneralOracle,
+    },
 };
 use movy_sui::database::cache::{CachedStore, ObjectSuiStoreCommit};
 use movy_types::{
@@ -72,6 +77,7 @@ pub struct SuiFuzzExecutor<T, OT, RT, I, S> {
     pub ob: OT,
     pub attacker: MoveAddress,
     pub oracles: RT,
+    pub packages_cache: PackageResolvedCache,
     // pub minted_gas: Object,
     // pub log_tracer: Option<SuiLogTracer>,
     pub ph: PhantomData<(I, S)>,
@@ -99,7 +105,7 @@ where
         + Clone
         + 'static,
     OT: ObserversTuple<I, S>,
-    RT: for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>,
+    RT: SuiGeneralOracle<S>,
     I: MoveInput,
     S: HasRand
         + HasFuzzMetadata
@@ -127,15 +133,25 @@ where
             code_ob[0] = 1;
         }
 
-        let db = CachedStore::new(&self.executor.db);
-        self.oracles.pre_execution(&db, state, input.sequence())?;
+        self.oracles
+            .pre_execution(&self.executor.db, state, input.sequence())?;
 
         trace!("Executing input: {}", input.sequence());
         state.executions_mut().add_assign(1);
         let gas_id = state.fuzz_state().gas_id;
-        let tracer = SuiFuzzTracer::new(&mut self.ob, state, &mut self.oracles, CODE_OBSERVER_NAME);
+        let resolver = PackageResolver {
+            db: &self.executor.db,
+            cache: std::mem::take(&mut self.packages_cache),
+        };
+        let tracer = SuiFuzzTracer::new(
+            &mut self.ob,
+            state,
+            &mut self.oracles,
+            CODE_OBSERVER_NAME,
+            resolver,
+        );
 
-        let result = self.executor.run_ptb_with_gas(
+        let result = self.executor.run_ptb_with_movy_tracer_gas(
             input.sequence().to_ptb()?,
             epoch,
             epoch_ms,
@@ -147,12 +163,13 @@ where
         let ExecutionTracedResults { results, tracer } = result;
         let effects = results.effects;
         let events = results.store.events.data.clone();
+        let db = CachedStore::new(&self.executor.db);
         db.commit_store(results.store, &effects)
             .map_err(|e| libafl::Error::unknown(format!("commit store failed: {e}")))?;
+        let mut tracer = tracer.expect("tracer should be present when tracing is enabled");
 
-        let mut trace_outcome = tracer
-            .expect("tracer should be present when tracing is enabled")
-            .outcome();
+        self.packages_cache = std::mem::take(&mut tracer.resolver.cache);
+        let mut trace_outcome = tracer.outcome();
 
         trace!("Execution finished with status: {:?}", effects.status());
 

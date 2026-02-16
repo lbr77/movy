@@ -13,70 +13,46 @@ use z3::ast::Ast;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PrecisionLossOracle;
 
-impl<T, S> SuiGeneralOracle<T, S> for PrecisionLossOracle {
-    fn pre_execution(
+impl<S> SuiGeneralOracle<S> for PrecisionLossOracle {
+    fn before_instruction(
         &mut self,
-        _db: &T,
-        _state: &mut S,
-        _sequence: &MoveSequence,
-    ) -> Result<(), MovyError> {
-        Ok(())
-    }
-
-    fn event(
-        &mut self,
-        event: &TraceEvent,
-        _stack: Option<&Stack>,
+        pc: u16,
+        instruction: &move_binary_format::file_format::Bytecode,
+        trace_state: &movy_replay::tracer::state::TraceState,
         symbol_stack: &ConcolicState,
-        current_function: Option<&movy_types::input::FunctionIdent>,
-        _state: &mut S,
+        current_function: &movy_types::input::FunctionIdent,
+        state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
-        match event {
-            TraceEvent::BeforeInstruction {
-                pc, instruction, ..
-            } => {
-                let loss = match instruction {
-                    move_binary_format::file_format::Bytecode::Mul => {
-                        let stack_len = symbol_stack.stack.len();
-                        if stack_len < 2 {
-                            return Ok(vec![]);
-                        }
-                        let rhs = &symbol_stack.stack[stack_len - 1];
-                        let lhs = &symbol_stack.stack[stack_len - 2];
-                        match (lhs, rhs) {
-                            (SymbolValue::Value(l), _) => contains_division(l),
-                            (_, SymbolValue::Value(r)) => contains_division(r),
-                            _ => false,
-                        }
-                    }
+        let loss = match instruction {
+            move_binary_format::file_format::Bytecode::Mul => {
+                let stack_len = symbol_stack.stack.len();
+                if stack_len < 2 {
+                    return Ok(vec![]);
+                }
+                let rhs = &symbol_stack.stack[stack_len - 1];
+                let lhs = &symbol_stack.stack[stack_len - 2];
+                match (lhs, rhs) {
+                    (SymbolValue::Value(l), _) => contains_division(l),
+                    (_, SymbolValue::Value(r)) => contains_division(r),
                     _ => false,
-                };
-                if loss {
-                    let info = json!({
-                        "oracle": "PrecisionLossOracle",
-                        "function": current_function.as_ref().map(|f| f.to_string()),
-                        "pc": pc,
-                    });
-                    Ok(vec![OracleFinding {
-                        oracle: "PrecisionLossOracle".to_string(),
-                        severity: movy_types::oracle::Severity::Medium,
-                        extra: info,
-                    }])
-                } else {
-                    Ok(vec![])
                 }
             }
-            _ => Ok(vec![]),
+            _ => false,
+        };
+        if loss {
+            let info = json!({
+                "oracle": "PrecisionLossOracle",
+                "function": current_function.to_string(),
+                "pc": pc,
+            });
+            Ok(vec![OracleFinding {
+                oracle: "PrecisionLossOracle".to_string(),
+                severity: movy_types::oracle::Severity::Medium,
+                extra: info,
+            }])
+        } else {
+            Ok(vec![])
         }
-    }
-
-    fn done_execution(
-        &mut self,
-        _db: &T,
-        _state: &mut S,
-        _effects: &TransactionEffects,
-    ) -> Result<Vec<OracleFinding>, MovyError> {
-        Ok(vec![])
     }
 }
 

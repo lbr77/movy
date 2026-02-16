@@ -29,34 +29,13 @@ impl TypedBugOracle {
     }
 }
 
-impl<T, S, E> SuiGeneralOracle<T, S> for TypedBugOracle
+impl<S, E> SuiGeneralOracle<S> for TypedBugOracle
 where
     S: HasExtraState<ExtraState = ExtraNonSerdeFuzzState<E>> + HasFuzzMetadata,
-    T: ObjectStore,
 {
-    fn pre_execution(
+    fn done_execution<T: ObjectStore>(
         &mut self,
-        _db: &T,
-        _state: &mut S,
-        _sequence: &MoveSequence,
-    ) -> Result<(), MovyError> {
-        Ok(())
-    }
-
-    fn event(
-        &mut self,
-        _event: &TraceEvent,
-        _stack: Option<&Stack>,
-        _symbol_stack: &ConcolicState,
-        _current_function: Option<&movy_types::input::FunctionIdent>,
-        _state: &mut S,
-    ) -> Result<Vec<OracleFinding>, MovyError> {
-        Ok(vec![])
-    }
-
-    fn done_execution(
-        &mut self,
-        _db: &T,
+        _db: T,
         state: &mut S,
         _effects: &TransactionEffects,
     ) -> Result<Vec<OracleFinding>, MovyError> {

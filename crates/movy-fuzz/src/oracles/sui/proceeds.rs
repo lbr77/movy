@@ -170,14 +170,13 @@ fn fetch_coins<P: ObjectStore>(
     Some(all_mutated_coins)
 }
 
-impl<T, S, E> SuiGeneralOracle<T, S> for ProceedsOracle
+impl<S, E> SuiGeneralOracle<S> for ProceedsOracle
 where
     S: HasExtraState<ExtraState = ExtraNonSerdeFuzzState<E>> + HasFuzzMetadata,
-    T: ObjectStore,
 {
-    fn pre_execution(
+    fn pre_execution<T: ObjectStore>(
         &mut self,
-        _db: &T,
+        _db: T,
         _state: &mut S,
         sequence: &MoveSequence,
     ) -> Result<(), MovyError> {
@@ -213,20 +212,9 @@ where
         Ok(())
     }
 
-    fn event(
+    fn done_execution<T: ObjectStore>(
         &mut self,
-        _event: &TraceEvent,
-        _stack: Option<&Stack>,
-        _symbol_stack: &ConcolicState,
-        _current_function: Option<&movy_types::input::FunctionIdent>,
-        _state: &mut S,
-    ) -> Result<Vec<OracleFinding>, MovyError> {
-        Ok(vec![])
-    }
-
-    fn done_execution(
-        &mut self,
-        db: &T,
+        db: T,
         state: &mut S,
         effects: &TransactionEffects,
     ) -> Result<Vec<OracleFinding>, MovyError> {
@@ -239,7 +227,7 @@ where
             return Ok(Vec::new());
         }
         let balance_change = get_balance_changes_from_effect(
-            db,
+            &db,
             effects,
             self.input_objects.clone(),
             state.fuzz_state().gas_id.into(),

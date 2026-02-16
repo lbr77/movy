@@ -8,6 +8,8 @@ use move_trace_format::{
 use move_vm_stack::Stack;
 use tracing::warn;
 
+use crate::tracer::{MovySuiTracerExt, state::TraceState};
+
 #[derive(Debug, Clone)]
 pub struct FrameTraced {
     pub open: Box<Frame>,
@@ -125,43 +127,47 @@ impl TreeTracer {
     pub fn take_inner(self) -> TreeTraceResult {
         self.inner
     }
+
+    fn open_frame_inner(&mut self, frame: &Box<Frame>) {
+        let inner = &mut self.inner;
+        let current = inner.current_calls();
+        let idx_len = current.len();
+        current.push(FrameTraced {
+            open: frame.clone(),
+            subcalls: vec![],
+            close: None,
+        });
+        // drop(current);
+        inner.call_idxs.push(idx_len);
+    }
+
+    fn close_frame_inner(&mut self, return_: &Vec<TraceValue>) {
+        let inner = &mut self.inner;
+        let current = inner.current_frame();
+        if current.is_none() {
+            warn!("current frame is none when trying to close frame!?");
+        } else {
+            current.unwrap().close = Some(return_.clone());
+        }
+        inner.call_idxs.pop();
+    }
 }
 
-impl Tracer for TreeTracer {
-    fn notify(
+impl MovySuiTracerExt for TreeTracer {
+    fn on_raw_event(&mut self, _state: &TraceState, ev: &TraceEvent) -> bool {
+        self.inner.evs.push(ev.clone());
+        true
+    }
+    fn open_frame(&mut self, _state: &TraceState, frame: &Box<Frame>, _gas_left: u64) {
+        self.open_frame_inner(frame);
+    }
+    fn close_frame(
         &mut self,
-        event: &move_trace_format::format::TraceEvent,
-        _writer: &mut move_trace_format::interface::Writer<'_>,
-        _stack: Option<&Stack>,
+        _state: &TraceState,
+        _frame_id: move_trace_format::format::TraceIndex,
+        return_: &Vec<TraceValue>,
+        _gas_left: u64,
     ) {
-        let inner = &mut self.inner;
-        inner.evs.push(event.clone());
-        match event {
-            TraceEvent::OpenFrame { frame, gas_left: _ } => {
-                let current = inner.current_calls();
-                let idx_len = current.len();
-                current.push(FrameTraced {
-                    open: frame.clone(),
-                    subcalls: vec![],
-                    close: None,
-                });
-                // drop(current);
-                inner.call_idxs.push(idx_len);
-            }
-            TraceEvent::CloseFrame {
-                frame_id: _,
-                return_,
-                gas_left: _,
-            } => {
-                let current = inner.current_frame();
-                if current.is_none() {
-                    warn!("current frame is none when trying to close frame!?");
-                } else {
-                    current.unwrap().close = Some(return_.clone());
-                }
-                inner.call_idxs.pop();
-            }
-            _ => {}
-        }
+        self.close_frame_inner(return_);
     }
 }

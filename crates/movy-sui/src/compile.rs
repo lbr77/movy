@@ -220,7 +220,10 @@ impl SuiCompiledPackage {
                 let address = md.unit.address.into_inner();
                 if address == AccountAddress::ZERO {
                     return Err(eyre!(
-                        "dependency {} does not have a published address and we are compiling _without_ bundling unpublished dependencies", sym.as_str()
+                        "dependency {}({}:{}) does not have a published address and we are compiling _without_ bundling unpublished dependencies",
+                        sym.as_str(),
+                        md.unit.module.self_id().address(),
+                         md.unit.module.self_id().name().as_str()
                     ).into());
                 }
             }

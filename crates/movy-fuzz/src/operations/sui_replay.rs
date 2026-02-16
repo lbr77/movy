@@ -13,7 +13,7 @@ use movy_replay::{
     db::{ObjectStoreCachedStore, ObjectStoreInfo, ObjectStoreMintObject},
     env::SuiTestingEnv,
     exec::SuiExecutor,
-    tracer::tree::TreeTracer,
+    tracer::{fuzz::PackageResolvedCache, tree::TreeTracer},
 };
 use movy_sui::database::cache::ObjectSuiStoreCommit;
 use movy_types::error::MovyError;
@@ -49,7 +49,7 @@ where
     let inner = env.into_inner();
     let executor = SuiExecutor::new(inner)?;
     let tracer = if trace { Some(TreeTracer::new()) } else { None };
-    let out = executor.run_ptb_with_gas(
+    let out = executor.run_ptb_with_movy_tracer_gas(
         seed.sequence.to_ptb()?,
         meta.epoch,
         meta.epoch_ms,
@@ -112,6 +112,7 @@ where
         ob: tuple_list!(code_observer),
         attacker,
         oracles: super::sui_fuzz::oracles(false, false, false),
+        packages_cache: PackageResolvedCache::default(),
         epoch: state.fuzz_state().epoch,
         epoch_ms: state.fuzz_state().epoch_ms,
         ph: std::marker::PhantomData,

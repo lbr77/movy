@@ -116,6 +116,8 @@ pub struct SuiFuzzArgs {
     pub rpc: SuiGrpcArg,
     #[arg(long, help = "Time limit of the fuzzing campaign")]
     pub time_limit: Option<u64>,
+    #[arg(long, help = "Cycle limit fo the fuzzing campaign")]
+    pub cycle_limit: Option<u64>,
     #[clap(flatten)]
     pub seed: RngSeed,
     #[arg(short, long, help = "Ouput directory to save all contents")]
@@ -301,6 +303,7 @@ impl SuiFuzzArgs {
                 env,
                 &self.output,
                 self.time_limit,
+                self.cycle_limit,
                 self.typed_bug_abort,
                 self.disable_profit_oracle,
                 self.disable_defects_oracle,

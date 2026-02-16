@@ -1,63 +1,82 @@
-use move_trace_format::format::TraceEvent;
-use move_vm_stack::Stack;
+use move_binary_format::file_format::Bytecode;
+use move_trace_format::format::{Frame, TraceEvent};
 use movy_types::{
     error::MovyError,
     input::{FunctionIdent, MoveSequence},
     oracle::OracleFinding,
 };
-use sui_types::effects::TransactionEffects;
+use sui_types::{effects::TransactionEffects, storage::ObjectStore};
 
-use crate::tracer::concolic::ConcolicState;
+use crate::tracer::{concolic::ConcolicState, state::TraceState};
 
-pub trait SuiGeneralOracle<T, S> {
-    fn pre_execution(
+pub trait SuiGeneralOracle<S> {
+    fn pre_execution<T: ObjectStore>(
         &mut self,
-        db: &T,
+        db: T,
         state: &mut S,
         sequence: &MoveSequence,
-    ) -> Result<(), MovyError>;
+    ) -> Result<(), MovyError> {
+        Ok(())
+    }
 
-    fn event(
+    fn open_frame(
         &mut self,
-        event: &TraceEvent,
-        stack: Option<&Stack>,
+        frame: &Box<Frame>,
+        trace_state: &TraceState,
         symbol_stack: &ConcolicState,
-        current_function: Option<&FunctionIdent>,
+        current_function: &FunctionIdent,
         state: &mut S,
-    ) -> Result<Vec<OracleFinding>, MovyError>;
+    ) -> Result<Vec<OracleFinding>, MovyError> {
+        Ok(vec![])
+    }
 
-    fn done_execution(
+    fn before_instruction(
         &mut self,
-        db: &T,
+        pc: u16,
+        bytecode: &Bytecode,
+        trace_state: &TraceState,
+        symbol_stack: &ConcolicState,
+        current_function: &FunctionIdent,
+        state: &mut S,
+    ) -> Result<Vec<OracleFinding>, MovyError> {
+        Ok(vec![])
+    }
+
+    fn done_execution<T: ObjectStore>(
+        &mut self,
+        db: T,
         state: &mut S,
         effects: &TransactionEffects,
-    ) -> Result<Vec<OracleFinding>, MovyError>;
+    ) -> Result<Vec<OracleFinding>, MovyError> {
+        Ok(vec![])
+    }
 }
 
-impl<T, S> SuiGeneralOracle<T, S> for () {
-    fn pre_execution(
+impl<S> SuiGeneralOracle<S> for () {
+    fn pre_execution<T>(
         &mut self,
-        _db: &T,
+        _db: T,
         _state: &mut S,
         _sequence: &MoveSequence,
     ) -> Result<(), MovyError> {
         Ok(())
     }
 
-    fn event(
+    fn before_instruction(
         &mut self,
-        _event: &TraceEvent,
-        _stack: Option<&Stack>,
+        _pc: u16,
+        _bytecode: &Bytecode,
+        _trace_state: &TraceState,
         _symbol_stack: &ConcolicState,
-        _current_function: Option<&movy_types::input::FunctionIdent>,
+        _current_function: &FunctionIdent,
         _state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(vec![])
     }
 
-    fn done_execution(
+    fn done_execution<T>(
         &mut self,
-        _db: &T,
+        _db: T,
         _state: &mut S,
         _effects: &TransactionEffects,
     ) -> Result<Vec<OracleFinding>, MovyError> {
@@ -65,51 +84,82 @@ impl<T, S> SuiGeneralOracle<T, S> for () {
     }
 }
 
-impl<T, S, O1, O2> SuiGeneralOracle<T, S> for (O1, O2)
+impl<S, O1, O2> SuiGeneralOracle<S> for (O1, O2)
 where
-    O1: SuiGeneralOracle<T, S>,
-    O2: SuiGeneralOracle<T, S>,
+    O1: SuiGeneralOracle<S>,
+    O2: SuiGeneralOracle<S>,
 {
-    fn pre_execution(
+    fn pre_execution<T: ObjectStore>(
         &mut self,
-        db: &T,
+        db: T,
         state: &mut S,
         sequence: &MoveSequence,
     ) -> Result<(), MovyError> {
-        self.0.pre_execution(db, state, sequence)?;
-        self.1.pre_execution(db, state, sequence)
+        self.0.pre_execution(&db, state, sequence)?;
+        self.1.pre_execution(&db, state, sequence)
     }
 
-    fn event(
+    fn open_frame(
         &mut self,
-        event: &TraceEvent,
-        stack: Option<&Stack>,
+        frame: &Box<Frame>,
+        trace_state: &TraceState,
         symbol_stack: &ConcolicState,
-        current_function: Option<&movy_types::input::FunctionIdent>,
+        current_function: &FunctionIdent,
         state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(self
             .0
-            .event(event, stack, symbol_stack, current_function, state)?
+            .open_frame(frame, trace_state, symbol_stack, current_function, state)?
             .into_iter()
             .chain(
                 self.1
-                    .event(event, stack, symbol_stack, current_function, state)?,
+                    .open_frame(frame, trace_state, symbol_stack, current_function, state)?,
             )
             .collect())
     }
 
-    fn done_execution(
+    fn before_instruction(
         &mut self,
-        db: &T,
+        pc: u16,
+        bytecode: &Bytecode,
+        trace_state: &TraceState,
+        symbol_stack: &ConcolicState,
+        current_function: &FunctionIdent,
+        state: &mut S,
+    ) -> Result<Vec<OracleFinding>, MovyError> {
+        Ok(self
+            .0
+            .before_instruction(
+                pc,
+                bytecode,
+                trace_state,
+                symbol_stack,
+                current_function,
+                state,
+            )?
+            .into_iter()
+            .chain(self.1.before_instruction(
+                pc,
+                bytecode,
+                trace_state,
+                symbol_stack,
+                current_function,
+                state,
+            )?)
+            .collect())
+    }
+
+    fn done_execution<T: ObjectStore>(
+        &mut self,
+        db: T,
         state: &mut S,
         effects: &TransactionEffects,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         Ok(self
             .0
-            .done_execution(db, state, effects)?
+            .done_execution(&db, state, effects)?
             .into_iter()
-            .chain(self.1.done_execution(db, state, effects)?)
+            .chain(self.1.done_execution(&db, state, effects)?)
             .collect())
     }
 }
@@ -125,13 +175,13 @@ impl<O> CouldDisabledOralce<O> {
     }
 }
 
-impl<O, T, S> SuiGeneralOracle<T, S> for CouldDisabledOralce<O>
+impl<O, S> SuiGeneralOracle<S> for CouldDisabledOralce<O>
 where
-    O: SuiGeneralOracle<T, S>,
+    O: SuiGeneralOracle<S>,
 {
-    fn pre_execution(
+    fn pre_execution<T: ObjectStore>(
         &mut self,
-        db: &T,
+        db: T,
         state: &mut S,
         sequence: &MoveSequence,
     ) -> Result<(), MovyError> {
@@ -141,24 +191,47 @@ where
         self.oracle.pre_execution(db, state, sequence)
     }
 
-    fn event(
+    fn open_frame(
         &mut self,
-        event: &TraceEvent,
-        stack: Option<&Stack>,
+        frame: &Box<Frame>,
+        trace_state: &TraceState,
         symbol_stack: &ConcolicState,
-        current_function: Option<&FunctionIdent>,
+        current_function: &FunctionIdent,
         state: &mut S,
     ) -> Result<Vec<OracleFinding>, MovyError> {
         if self.disabled {
             return Ok(vec![]);
         }
+
         self.oracle
-            .event(event, stack, symbol_stack, current_function, state)
+            .open_frame(frame, trace_state, symbol_stack, current_function, state)
     }
 
-    fn done_execution(
+    fn before_instruction(
         &mut self,
-        db: &T,
+        pc: u16,
+        bytecode: &Bytecode,
+        trace_state: &TraceState,
+        symbol_stack: &ConcolicState,
+        current_function: &FunctionIdent,
+        state: &mut S,
+    ) -> Result<Vec<OracleFinding>, MovyError> {
+        if self.disabled {
+            return Ok(vec![]);
+        }
+        self.oracle.before_instruction(
+            pc,
+            bytecode,
+            trace_state,
+            symbol_stack,
+            current_function,
+            state,
+        )
+    }
+
+    fn done_execution<T: ObjectStore>(
+        &mut self,
+        db: T,
         state: &mut S,
         effects: &TransactionEffects,
     ) -> Result<Vec<OracleFinding>, MovyError> {

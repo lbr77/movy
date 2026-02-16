@@ -28,6 +28,7 @@ use libafl_bolts::tuples::tuple_list;
 use movy_replay::db::{ObjectStoreCachedStore, ObjectStoreInfo};
 use movy_replay::env::SuiTestingEnv;
 use movy_replay::exec::SuiExecutor;
+use movy_replay::tracer::fuzz::PackageResolvedCache;
 use movy_replay::tracer::oracle::{CouldDisabledOralce, SuiGeneralOracle};
 use movy_sui::database::cache::{CachedStore, ObjectSuiStoreCommit};
 use movy_types::error::MovyError;
@@ -35,13 +36,12 @@ use sui_types::storage::BackingStore;
 use sui_types::storage::{BackingPackageStore, ObjectStore};
 use tracing::{info, warn};
 
-pub fn oracles<T, S, E>(
+pub fn oracles<S, E>(
     typed_bug_abort: bool,
     disable_profit_oracle: bool,
     disable_defects_oracle: bool,
-) -> impl for<'a> SuiGeneralOracle<CachedStore<&'a T>, S>
+) -> impl SuiGeneralOracle<S>
 where
-    T: 'static + ObjectStore,
     S: HasMetadata + HasExtraState<ExtraState = ExtraNonSerdeFuzzState<E>> + HasFuzzMetadata,
 {
     tuple_list!(
@@ -60,6 +60,7 @@ fn fuzz_impl<T>(
     env: SuiTestingEnv<T>,
     output: &Option<PathBuf>,
     time_limit: Option<u64>,
+    cycles_limit: Option<u64>,
     typed_bug_abort: bool,
     disable_profit_oracle: bool,
     disable_defects_oracle: bool,
@@ -136,6 +137,7 @@ where
             disable_profit_oracle,
             disable_defects_oracle,
         ),
+        packages_cache: PackageResolvedCache::default(),
         epoch: state.fuzz_state().epoch,
         epoch_ms: state.fuzz_state().epoch_ms,
         ph: std::marker::PhantomData,
@@ -204,13 +206,19 @@ where
         .unwrap();
 
     let start = std::time::SystemTime::now();
-    let mut cycle = 1usize;
+    let mut cycle = 1u64;
     loop {
         if let Some(limit) = time_limit {
             let current = std::time::SystemTime::now();
 
             let elapsed = current.duration_since(start).expect("non mono clock?!");
             if elapsed > Duration::from_secs(limit) {
+                break;
+            }
+        }
+
+        if let Some(climit) = cycles_limit {
+            if cycle >= climit {
                 break;
             }
         }
@@ -250,6 +258,7 @@ pub fn fuzz(
     >,
     output: &Option<PathBuf>,
     time_limit: Option<u64>,
+    cycles_limit: Option<u64>,
     typed_bug_abort: bool,
     disable_profit_oracle: bool,
     disable_defects_oracle: bool,
@@ -259,6 +268,7 @@ pub fn fuzz(
         env,
         output,
         time_limit,
+        cycles_limit,
         typed_bug_abort,
         disable_profit_oracle,
         disable_defects_oracle,
