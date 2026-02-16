@@ -392,6 +392,8 @@ impl SuiCompiledPackage {
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
     use crate::compile::SuiCompiledPackage;
 
     #[test]

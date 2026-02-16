@@ -61,7 +61,7 @@ tonic = "0.14"
 url = "2.5.7"
 
 # Sui dependencies
-move-binary-format = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz", features = ["wasm"]}
+move-binary-format = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 move-trace-format = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 move-package = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}
 move-compiler = {git = "https://github.com/wtdcode/sui", branch = "v1.65.2-fuzz"}

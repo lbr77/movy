@@ -24,30 +24,20 @@ fn build_movy(dir: &Path) -> SuiCompiledPackage {
 }
 
 fn build_std(dir: &Path, test: bool) -> Vec<SuiCompiledPackage> {
-    clear_build(dir);
-    // let (_, resolved) = build_package_resolved(dir, test).unwrap();
     let _flag = if test { "testing" } else { "non-testing" };
-    let deps = vec![];
-    // for (package_name, package) in resolved.package_table.iter() {
-    //     if package_name.as_str() != "hello_std" {
-    //         cargo_print!(
-    //             "Building {} std {} at {}",
-    //             flag,
-    //             package_name.as_str(),
-    //             package.package_path.display()
-    //         );
-
-    //         let out =
-    //             SuiCompiledPackage::build_all_unpublished_from_folder(&package.package_path, test)
-    //                 .unwrap();
-    //         let build_directory = package.package_path.join("build");
-    //         if build_directory.exists() {
-    //             std::fs::remove_dir_all(&build_directory).unwrap();
-    //         }
-    //         deps.push(out);
-    //     }
-    // }
-    deps
+    let mut out = vec![];
+    for package in [
+        "bridge",
+        "deepbook",
+        "move-stdlib",
+        "sui-framework",
+        "sui-system",
+    ] {
+        let package = dir.join(package);
+        clear_build(&package);
+        out.push(SuiCompiledPackage::build_checked(&package, test, false, true).unwrap());
+    }
+    out
 }
 
 fn write_bcs<T: Serialize>(path: &Path, val: T) {
@@ -57,13 +47,12 @@ fn write_bcs<T: Serialize>(path: &Path, val: T) {
 }
 
 fn main() {
-    let std = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/hello_std"));
+    let std = PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/sui-framework/packages"
+    ));
     let movy = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/movy"));
     println!("cargo::rerun-if-changed={}", movy.join("sources").display());
-    println!(
-        "cargo::rerun-if-changed={}",
-        std.join("Move.toml").display()
-    );
     println!(
         "cargo::rerun-if-changed={}",
         movy.join("Move.toml").display()
