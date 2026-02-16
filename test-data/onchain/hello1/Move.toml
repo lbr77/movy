@@ -3,11 +3,12 @@ name = "hello1"
 edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
+published-at = "0x18f8f4ebada51361c6558c7cfa77cb46be72fca7caacc475dc828858becfaa75"
 
 [dependencies]
 
 [addresses]
-hello1 = "0bcb4367516cc4f22b7c0265db04e9b4e83b1f24b0b0455020f26e448df6fd08"
+hello1 = "0x0bcb4367516cc4f22b7c0265db04e9b4e83b1f24b0b0455020f26e448df6fd08"
 
 [dev-dependencies]
 

@@ -313,6 +313,7 @@ where
             // derive id
             let id = ObjectID::derive_id(random_digest(), self.deploy_ids);
             self.deploy_ids += 1;
+            tracing::info!("Generate a new package id: {}", id);
             substitute_package_id(&mut modules, id)?;
         }
 

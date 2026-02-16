@@ -17,13 +17,13 @@ manifest_digest = "CD547CB1ACCE0880C835DAED2D8FFCB91D56C833AE5240D3AA5B918398263
 deps = { MoveStdlib = "MoveStdlib" }
 
 [pinned.mainnet.hello1]
-source = { local = "../hello1_published_at" }
+source = { local = "../hello1" }
 use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.mainnet.hello5]
+[pinned.mainnet.hello2]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "DD36F9142A6993BCD069FDEB9717FAB5F09F484370A1FBABDD416AE1AD241EA5"
+manifest_digest = "5E41B999946BE28C1E620B4E6C5F1B8A9232B5BC411CF52F8C2E1A086A901B98"
 deps = { hello1 = "hello1", std = "MoveStdlib", sui = "Sui" }

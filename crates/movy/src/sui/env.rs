@@ -100,7 +100,7 @@ impl SuiTargetArgs {
         let mut local_name_map = BTreeMap::new();
 
         for onchain in self.onchains.iter().flatten() {
-            env.deploy_package_at_address(*onchain, rpc).await?;
+            env.fetch_package_at_address(*onchain, rpc).await?;
             target_packages.push(*onchain);
         }
 

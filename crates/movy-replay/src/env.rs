@@ -128,6 +128,44 @@ impl<
         self.install_std(true)
     }
 
+    pub async fn fetch_package_at_address(
+        &self,
+        package_id: MoveAddress,
+        rpc: &GraphQlDatabase,
+    ) -> Result<BTreeSet<ObjectID>, MovyError> {
+        let mut out = BTreeSet::new();
+        if let Some(object) = rpc.get_object(package_id.into()).await? {
+            tracing::info!(
+                "Fetching package {}:{} from chain",
+                package_id,
+                object.version()
+            );
+            let pkg = object
+                .data
+                .try_as_package()
+                .ok_or_else(|| eyre!("Expected package data for {}", object.id()))?;
+
+            for (id, upgrade_info) in pkg.linkage_table() {
+                if self.db.get_object(&upgrade_info.upgraded_id).is_none() {
+                    tracing::info!(
+                        "Fetching ugprade cap {}:{} from chain",
+                        upgrade_info.upgraded_id,
+                        upgrade_info.upgraded_version
+                    );
+                    self.deploy_object_id(upgrade_info.upgraded_id.into(), rpc)
+                        .await?;
+                } else {
+                    tracing::debug!("Upgrade info {:?} already exists", upgrade_info);
+                }
+                out.insert(*id);
+            }
+            self.db.commit_single_object(object)?;
+        } else {
+            return Err(eyre!("package {} not found", package_id).into());
+        }
+        Ok(out)
+    }
+
     pub async fn load_local(
         &self,
         path: &Path,
@@ -154,31 +192,39 @@ impl<
         let compiled_result = compiled_result.movy_mock()?;
 
         // Deploy onchain deps or deps used by immediate dependencies
-        for dep in
-            abi_result
-                .dependencies()
-                .iter()
-                .copied()
-                .chain(abi_result.all_modules_iter().flat_map(|t| {
-                    t.immediate_dependencies()
-                        .into_iter()
-                        .map(|im| (*im.address()).into())
-                }))
-        {
+        let mut packages_to_deploy = abi_result
+            .dependencies()
+            .iter()
+            .copied()
+            .chain(abi_result.all_modules_iter().flat_map(|t| {
+                t.immediate_dependencies()
+                    .into_iter()
+                    .map(|im| (*im.address()).into())
+            }))
+            .collect::<BTreeSet<_>>();
+        while let Some(dep) = packages_to_deploy.pop_last() {
             let dep = AccountAddress::from(dep);
 
-            if dep != AccountAddress::ZERO && self.db.get_object(&dep.into()).is_none() {
+            if dep != AccountAddress::ZERO
+                && dep != compiled_result.package_id.into()
+                && self.db.get_object(&dep.into()).is_none()
+            {
                 tracing::info!(
                     "Dependency {} not found in our db for {}, trying to fetch it from onchain",
                     dep,
                     path.display()
                 );
-                if let Err(e) = self.deploy_package_at_address(dep.into(), rpc).await {
-                    tracing::warn!(
-                        "Fail to add the object {} due to {}, this might be fine though.",
-                        dep,
-                        e
-                    );
+                match self.fetch_package_at_address(dep.into(), rpc).await {
+                    Ok(nexts) => {
+                        packages_to_deploy.extend(nexts.into_iter());
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Fail to add the object {} due to {}, this might be fine though.",
+                            dep,
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -318,35 +364,6 @@ impl<
             return Err(eyre!("object {} not found", package_id).into());
         }
 
-        Ok(())
-    }
-
-    pub async fn deploy_package_at_address(
-        &self,
-        package_id: MoveAddress,
-        rpc: &GraphQlDatabase,
-    ) -> Result<(), MovyError> {
-        tracing::info!("Fetching package {} from chain", package_id);
-        if let Some(object) = rpc.get_object(package_id.into()).await? {
-            let pkg = object
-                .data
-                .try_as_package()
-                .ok_or_else(|| eyre!("Expected package data for {}", object.id()))?;
-
-            for upgrade_info in pkg.linkage_table().values() {
-                if self.db.get_object(&upgrade_info.upgraded_id).is_none() {
-                    tracing::info!(
-                        "Fetching ugprade cap {} from chain",
-                        upgrade_info.upgraded_id
-                    );
-                    self.deploy_object_id(upgrade_info.upgraded_id.into(), rpc)
-                        .await?;
-                }
-            }
-            self.db.commit_single_object(object)?;
-        } else {
-            return Err(eyre!("package {} not found", package_id).into());
-        }
         Ok(())
     }
 
