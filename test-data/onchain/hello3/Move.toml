@@ -20,7 +20,7 @@ hello2 = {local = "../hello2"}
 hello4 = {local = "../hello4"}
 
 [addresses]
-hello3 = "0x0"
+hello3 = "0xb85b49f4e129b9b97d556c9853978b3695d588c8068accd8285d5a9a4078f610"
 
 # Named addresses will be accessible in Move as `@name`. They're also exported:
 # for example, `std = "0x1"` is exported by the Standard Library.

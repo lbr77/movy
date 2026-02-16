@@ -23,6 +23,10 @@ pub fn build_package_resolved(
     cfg.default_flavor = Some(Flavor::Sui);
     cfg.test_mode = test_mode;
     cfg.silence_warnings = true;
+    // IMPORTANT:
+    // Sui now tries to assign a few unique addresses for each unpublished modules (see `unique_hash` and `NamedAddress::Unpublished`)
+    // We overrite this and request the behavior of the old version
+    cfg.set_unpublished_deps_to_zero = true;
 
     let cfg = BuildConfig {
         config: cfg,
@@ -414,5 +418,15 @@ public fun new<T: drop, V: drop>(ctx: &mut TxContext, t2: &Test<T, V>, t: &Test<
         dbg!(&out);
         let abi = out.abi().unwrap();
         dbg!(&abi);
+    }
+
+    #[test]
+    fn test_build() {
+        let out = SuiCompiledPackage::build(
+            &PathBuf::from("/home/mio/bitslab/movy-oss/test-data/onchain/hello3"),
+            false,
+            true,
+        )
+        .unwrap();
     }
 }

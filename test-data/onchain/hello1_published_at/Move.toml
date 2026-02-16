@@ -8,7 +8,7 @@ published-at = "0x18f8f4ebada51361c6558c7cfa77cb46be72fca7caacc475dc828858becfaa
 [dependencies]
 
 [addresses]
-hello1 = "0x0"
+hello1 = "0x18f8f4ebada51361c6558c7cfa77cb46be72fca7caacc475dc828858becfaa75"
 
 [dev-dependencies]
 
